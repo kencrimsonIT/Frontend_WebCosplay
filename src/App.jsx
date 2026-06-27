@@ -92,6 +92,8 @@ import Reviews from './pages/Reviews'
 import Promotions from './pages/Promotions'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
+import CheckoutSuccess from './pages/CheckoutSuccess'
+import { PaymentVNPay, PaymentMoMo } from './pages/PaymentGateway'
 import AddProduct from './pages/AddProduct'
 import ManageInventory from './pages/ManageInventory'
 import AdminDashboard from './pages/AdminDashboard'
@@ -137,6 +139,9 @@ function App() {
           <Route path="/oauth2/callback" element={<OAuth2RedirectHandler />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/checkout/success" element={<CheckoutSuccess />} />
+          <Route path="/payment/vnpay" element={<PaymentVNPay />} />
+          <Route path="/payment/momo" element={<PaymentMoMo />} />
         </Route>
 
         {/* WEB SELLER RIÊNG */}
@@ -156,6 +161,8 @@ function App() {
           <Route path="users" element={<AdminDashboard />} />
           <Route path="categories" element={<AdminDashboard />} />
           <Route path="content" element={<AdminDashboard />} />
+          <Route path="orders" element={<AdminDashboard />} />
+          <Route path="revenue" element={<AdminDashboard />} />
           <Route path="complaints" element={<AdminDashboard />} />
           <Route path="insurance" element={<InsuranceAdmin />} />
         </Route>

@@ -17,3 +17,11 @@ export const getPaymentStatus = async (txnRef) => {
         throw error.response?.data || error.message;
     }
 };
+export const confirmPayment = async (txnRef, success = true) => {
+    try {
+        const response = await axiosInstance.post(`/api/payments/online/confirm/${encodeURIComponent(txnRef)}?success=${success}`);
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
