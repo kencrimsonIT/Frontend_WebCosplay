@@ -162,10 +162,10 @@ function ProductDetail() {
           <div className="pd-rating-row">
             <div className="pd-stars">
               {[1, 2, 3, 4, 5].map(star => (
-                <span key={star} className={star <= Math.round(product.rating ?? 0) ? 'star filled' : 'star'}>★</span>
+                <span key={star} className={star <= Math.round(product.avgRating ?? 0) ? 'star filled' : 'star'}>★</span>
               ))}
             </div>
-            <span className="pd-rating-num">{product.rating?.toFixed(1)}</span>
+            <span className="pd-rating-num">{product.avgRating?.toFixed(1)}</span>
             <span className="pd-reviews">({product.reviewCount ?? 0} đánh giá)</span>
           </div>
 
