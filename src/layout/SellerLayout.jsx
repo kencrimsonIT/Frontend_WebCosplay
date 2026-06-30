@@ -17,6 +17,17 @@ function SellerLayout() {
 
         <nav className="seller-nav">
           <NavLink
+            to="/seller"
+            end
+            className={({ isActive }) =>
+              isActive ? 'seller-nav-link active' : 'seller-nav-link'
+            }
+          >
+            <span>□</span>
+            Tổng quan
+          </NavLink>
+
+          <NavLink
             to="/seller/add-product"
             className={({ isActive }) =>
               isActive ? 'seller-nav-link active' : 'seller-nav-link'

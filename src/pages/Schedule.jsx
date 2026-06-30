@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useDemoStore } from '../context/DemoStore'
+import { getSellerOrders, updateSellerOrderStatus } from '../api/seller_api'
 import '../styles/Schedule.css'
 
 const WEEK_DAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
@@ -27,6 +29,15 @@ const STATUS_META = {
   waiting_return: { label: 'Chờ trả đồ', tone: 'waiting_return' },
   returned: { label: 'Đã trả đồ', tone: 'returned' },
   rejected: { label: 'Đã từ chối', tone: 'rejected' },
+}
+
+const BACKEND_STATUS_TO_KEY = {
+  PENDING_PAYMENT: 'pending',
+  PENDING_CONFIRM: 'pending',
+  CONFIRMED: 'confirmed',
+  RENTING: 'active',
+  COMPLETED: 'returned',
+  CANCELLED: 'rejected',
 }
 
 function parseISODate(value) {
@@ -115,6 +126,24 @@ function normalizeOrder(order, today) {
     days,
     shortName: order.costume?.length > 14 ? `${order.costume.slice(0, 12)}…` : order.costume,
     actionDate: statusKey === 'waiting_return' ? endDate : startDate,
+  }
+}
+
+function normalizeBackendOrder(order) {
+  const item = order.items?.[0] ?? {}
+  return {
+    id: order.id,
+    orderCode: order.orderCode,
+    backendStatus: order.status,
+    statusKey: BACKEND_STATUS_TO_KEY[order.status] ?? 'confirmed',
+    costume: item.productName || order.orderCode,
+    customer: order.customerName || 'Khach hang',
+    phone: order.customerPhone || '-',
+    rentFrom: order.rentFrom,
+    rentTo: order.rentTo,
+    days: item.days,
+    deposit: Number(order.sellerDepositTotal ?? order.orderDepositTotal ?? 0),
+    warranty: 'none',
   }
 }
 
@@ -469,15 +498,40 @@ function BookingRow({ booking, onApprove, onReject, onOpenReturn }) {
 
 function Schedule() {
   const { orders, approveOrder, rejectOrder, completeOrderReturn } = useDemoStore()
+  const location = useLocation()
+  const sellerMode = location.pathname.startsWith('/seller')
+  const [sellerOrders, setSellerOrders] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [activeModal, setActiveModal] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
   const [toast, setToast] = useState(null)
 
   const today = useMemo(() => startOfDay(new Date()), [])
 
+  useEffect(() => {
+    if (!sellerMode) return
+    let ignore = false
+    setLoading(true)
+    setError('')
+    getSellerOrders()
+      .then(data => {
+        if (!ignore) setSellerOrders((Array.isArray(data) ? data : []).map(normalizeBackendOrder))
+      })
+      .catch(err => {
+        if (!ignore) setError(err?.message || 'Khong tai duoc lich don nguoi ban')
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => { ignore = true }
+  }, [sellerMode])
+
+  const sourceOrders = sellerMode ? (sellerOrders ?? []) : orders
+
   const normalizedBookings = useMemo(
-    () => orders.map(order => normalizeOrder(order, today)).sort((a, b) => a.actionDate - b.actionDate),
-    [orders, today]
+    () => sourceOrders.map(order => normalizeOrder(order, today)).sort((a, b) => a.actionDate - b.actionDate),
+    [sourceOrders, today]
   )
 
   const activeBookings = normalizedBookings.filter(booking => booking.statusKey !== 'rejected')
@@ -508,17 +562,48 @@ function Schedule() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const handleApprove = (orderId) => {
+  const handleApprove = async (orderId) => {
+    if (sellerMode) {
+      try {
+        const saved = await updateSellerOrderStatus(orderId, 'CONFIRMED')
+        setSellerOrders(prev => prev.map(order => order.id === orderId ? normalizeBackendOrder(saved) : order))
+        showToast('Da duyet don va dua vao lich thue.')
+      } catch (err) {
+        showToast(err?.message || 'Khong duyet duoc don')
+      }
+      return
+    }
     approveOrder(orderId)
     showToast('Đã duyệt đơn và đưa vào lịch thuê.')
   }
 
-  const handleReject = (orderId) => {
+  const handleReject = async (orderId) => {
+    if (sellerMode) {
+      try {
+        const saved = await updateSellerOrderStatus(orderId, 'CANCELLED')
+        setSellerOrders(prev => prev.map(order => order.id === orderId ? normalizeBackendOrder(saved) : order))
+        showToast('Da tu choi don thue.')
+      } catch (err) {
+        showToast(err?.message || 'Khong tu choi duoc don')
+      }
+      return
+    }
     rejectOrder(orderId)
     showToast('Đã từ chối đơn thuê.')
   }
 
-  const handleConfirmReturn = ({ refundAmount }) => {
+  const handleConfirmReturn = async ({ refundAmount }) => {
+    if (sellerMode) {
+      try {
+        const saved = await updateSellerOrderStatus(activeModal.id, 'COMPLETED')
+        setSellerOrders(prev => prev.map(order => order.id === activeModal.id ? normalizeBackendOrder(saved) : order))
+        setActiveModal(null)
+        showToast(`Da xac nhan tra do - Hoan ${refundAmount.toLocaleString('vi-VN')}d`)
+      } catch (err) {
+        showToast(err?.message || 'Khong cap nhat duoc don')
+      }
+      return
+    }
     completeOrderReturn(activeModal.id)
     setActiveModal(null)
     showToast(`Đã xác nhận trả đồ · Hoàn ${refundAmount.toLocaleString('vi-VN')}đ`)
@@ -527,6 +612,8 @@ function Schedule() {
   return (
     <div className="schedule-page">
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {sellerMode && loading && <div className="schedule-card compact-card">Dang tai lich don...</div>}
+      {sellerMode && error && <div className="schedule-card compact-card">{error}</div>}
 
       <section className="schedule-hero">
         <div className="hero-copy">

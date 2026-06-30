@@ -62,3 +62,20 @@
 .section-content {
     color: var(--text-muted);
 }
+
+.section-content p {
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.section-content .btn-browse {
+    display: inline-flex;
+    margin-top: 10px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--color-purple), var(--color-purple-mid));
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+}

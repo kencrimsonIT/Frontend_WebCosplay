@@ -1,481 +1,325 @@
-import { useState } from 'react'
-import { useDemoStore } from '../context/DemoStore'
+import { useEffect, useMemo, useState } from 'react'
+import { getMyOrderDetail, getMyOrderHistory } from '../api/order_api'
+import { createProductReview } from '../api/review_api'
 import '../styles/MyOrders.css'
 
-/* ---- Mock Data ---- */
-const ACTIVE_ORDERS = [
-  {
-    id: 'ORD-2024-001',
-    costume: 'Demon Slayer Tanjiro',
-    category: 'Anime',
-    image: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=300&h=400&fit=crop',
-    rentFrom: '2024-07-10',
-    rentTo: '2024-07-14',
-    price: 170000,
-    days: 4,
-    status: 'Đang thuê',
-    returnAddress: '123 Nguyễn Huệ, Q.1, TP.HCM',
-  },
-  {
-    id: 'ORD-2024-002',
-    costume: 'Iron Man Mark 50',
-    category: 'Siêu Anh Hùng',
-    image: 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=300&h=400&fit=crop',
-    rentFrom: '2024-07-08',
-    rentTo: '2024-07-13',
-    price: 250000,
-    days: 5,
-    status: 'Chờ trả',
-    returnAddress: '88 Lê Lợi, Q.3, TP.HCM',
-  },
-  {
-    id: 'ORD-2024-003',
-    costume: 'Princess Elsa',
-    category: 'Fantasy',
-    image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=300&h=400&fit=crop',
-    rentFrom: '2024-07-12',
-    rentTo: '2024-07-15',
-    price: 175000,
-    days: 3,
-    status: 'Đang thuê',
-    returnAddress: '123 Nguyễn Huệ, Q.1, TP.HCM',
-  },
-]
+const STATUS_LABELS = {
+  PENDING_PAYMENT: 'Cho thanh toan',
+  PENDING_CONFIRM: 'Cho xac nhan',
+  CONFIRMED: 'Da xac nhan',
+  RENTING: 'Dang thue',
+  COMPLETED: 'Hoan thanh',
+  CANCELLED: 'Da huy',
+}
 
-const HISTORY_ORDERS = [
-  {
-    id: 'ORD-2024-005',
-    costume: 'Naruto Uzumaki',
-    category: 'Anime',
-    image: 'https://images.unsplash.com/photo-1610701596007-11502861dcfa?w=300&h=400&fit=crop',
-    rentFrom: '2024-06-01',
-    rentTo: '2024-06-03',
-    price: 150000,
-    days: 2,
-    status: 'Hoàn thành',
-    reviewed: false,
-  },
-  {
-    id: 'ORD-2024-004',
-    costume: 'Witcher Geralt',
-    category: 'Game',
-    image: 'https://images.unsplash.com/photo-1579033127963-fab4c4604f00?w=300&h=400&fit=crop',
-    rentFrom: '2024-06-15',
-    rentTo: '2024-06-18',
-    price: 210000,
-    days: 3,
-    status: 'Hoàn thành',
-    reviewed: true,
-    review: { rating: 5, comment: 'Trang phục rất đẹp, chất lượng tốt, giao nhanh. Sẽ thuê lại lần sau!' },
-  },
-  {
-    id: 'ORD-2024-003',
-    costume: 'Batman',
-    category: 'Siêu Anh Hùng',
-    image: 'https://images.unsplash.com/photo-1599599810694-b3b147e5a8c4?w=300&h=400&fit=crop',
-    rentFrom: '2024-05-20',
-    rentTo: '2024-05-22',
-    price: 200000,
-    days: 2,
-    status: 'Đã hủy',
-    reviewed: false,
-  },
-  {
-    id: 'ORD-2024-002',
-    costume: 'Fairy Elf Queen',
-    category: 'Fantasy',
-    image: 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=300&h=400&fit=crop',
-    rentFrom: '2024-05-05',
-    rentTo: '2024-05-08',
-    price: 185000,
-    days: 3,
-    status: 'Hoàn thành',
-    reviewed: false,
-  },
-]
+const ACTIVE_STATUSES = ['PENDING_PAYMENT', 'PENDING_CONFIRM', 'CONFIRMED', 'RENTING']
 
-/* ---- Status colors ---- */
 const STATUS_COLORS = {
-  'Chờ xác nhận':  { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24', border: 'rgba(251,191,36,0.3)' },
-  'Đã xác nhận':   { bg: 'rgba(96,165,250,0.12)',  color: '#93c5fd', border: 'rgba(96,165,250,0.3)' },
-  'Đang thuê':     { bg: 'rgba(34,197,94,0.12)',   color: '#4ade80', border: 'rgba(34,197,94,0.3)' },
-  'Chờ trả':       { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24', border: 'rgba(251,191,36,0.3)' },
-  'Chờ trả đồ':    { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24', border: 'rgba(251,191,36,0.3)' },
-  'Hoàn thành':    { bg: 'rgba(168,85,247,0.12)',  color: '#c084fc', border: 'rgba(168,85,247,0.3)' },
-  'Đã từ chối':    { bg: 'rgba(239,68,68,0.1)',    color: '#f87171', border: 'rgba(239,68,68,0.25)' },
-  'Đã hủy':        { bg: 'rgba(239,68,68,0.1)',    color: '#f87171', border: 'rgba(239,68,68,0.25)' },
+  PENDING_PAYMENT: { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: 'rgba(251,191,36,0.3)' },
+  PENDING_CONFIRM: { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: 'rgba(251,191,36,0.3)' },
+  CONFIRMED: { bg: 'rgba(96,165,250,0.12)', color: '#93c5fd', border: 'rgba(96,165,250,0.3)' },
+  RENTING: { bg: 'rgba(34,197,94,0.12)', color: '#4ade80', border: 'rgba(34,197,94,0.3)' },
+  COMPLETED: { bg: 'rgba(168,85,247,0.12)', color: '#c084fc', border: 'rgba(168,85,247,0.3)' },
+  CANCELLED: { bg: 'rgba(239,68,68,0.1)', color: '#f87171', border: 'rgba(239,68,68,0.25)' },
 }
 
-/* ---- Star Rating ---- */
-function StarRating({ value, onChange }) {
-  const [hovered, setHovered] = useState(0)
-  return (
-    <div className="star-rating">
-      {[1, 2, 3, 4, 5].map(s => (
-        <button
-          key={s}
-          className={`star-btn ${s <= (hovered || value) ? 'active' : ''}`}
-          onMouseEnter={() => setHovered(s)}
-          onMouseLeave={() => setHovered(0)}
-          onClick={() => onChange(s)}
-        >★</button>
-      ))}
-    </div>
-  )
+function money(value) {
+  return `${Number(value || 0).toLocaleString('vi-VN')}d`
 }
 
-/* ---- Review Modal ---- */
-function ReviewModal({ order, onClose, onSubmit }) {
-  const [rating, setRating] = useState(5)
-  const [comment, setComment] = useState('')
-  const handleSubmit = () => {
-    if (!comment.trim()) return
-    onSubmit(order.id, { rating, comment })
-    onClose()
-  }
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">Đánh Giá Trang Phục</h3>
-          <button className="modal-close" onClick={onClose}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-
-        <div className="modal-costume-info">
-          <img src={order.image} alt={order.costume} className="modal-img" />
-          <div>
-            <p className="modal-costume-name">{order.costume}</p>
-            <p className="modal-order-id">{order.id}</p>
-          </div>
-        </div>
-
-        <div className="modal-section">
-          <label className="form-label">Chất lượng trang phục</label>
-          <StarRating value={rating} onChange={setRating} />
-        </div>
-
-        <div className="modal-section">
-          <label className="form-label">Nhận xét của bạn</label>
-          <textarea
-            className="review-textarea"
-            placeholder="Chia sẻ trải nghiệm của bạn về trang phục này..."
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            rows={4}
-          />
-        </div>
-
-        <div className="modal-actions">
-          <button className="btn-cancel" onClick={onClose}>Hủy</button>
-          <button className="btn-save-primary" onClick={handleSubmit} disabled={!comment.trim()}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-            Gửi đánh giá
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+function date(value) {
+  if (!value) return '-'
+  return new Date(value).toLocaleDateString('vi-VN')
 }
 
-/* ---- Confirm Modal ---- */
-function ConfirmModal({ title, desc, onConfirm, onClose, danger }) {
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-box modal-confirm" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <p className="modal-desc">{desc}</p>
-        <div className="modal-actions">
-          <button className="btn-cancel" onClick={onClose}>Không, hủy bỏ</button>
-          <button className={danger ? 'btn-danger' : 'btn-save-primary'} onClick={onConfirm}>
-            Xác nhận
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+function firstItem(order) {
+  return order.items?.[0] ?? {}
 }
 
-/* ---- Active Order Card ---- */
-function ActiveOrderCard({ order, onExtend, onCancel }) {
-  const fmtPrice = p => p.toLocaleString('vi-VN')
-  const fmtDate = d => new Date(d).toLocaleDateString('vi-VN')
-  const s = STATUS_COLORS[order.status] || STATUS_COLORS['Đang thuê']
-
-  const daysLeft = Math.max(0, Math.ceil((new Date(order.rentTo) - new Date()) / (1000 * 60 * 60 * 24)))
-
-  return (
-    <div className="order-card active-card">
-      <div className="order-card-img-wrap">
-        <img src={order.image} alt={order.costume} className="order-card-img"
-          onError={e => { e.target.src = `https://picsum.photos/seed/${order.id}/300/400` }} />
-        <div className="order-img-overlay" />
-      </div>
-
-      <div className="order-card-body">
-        <div className="order-card-top">
-          <div>
-            <h3 className="order-costume-name">{order.costume}</h3>
-            <p className="order-id-label">{order.id}</p>
-          </div>
-          <span className="order-status-badge" style={{ background: s.bg, color: s.color, borderColor: s.border }}>
-            {order.status}
-          </span>
-        </div>
-
-        <div className="order-info-grid">
-          <div className="order-info-item">
-            <span className="info-icon">📅</span>
-            <div>
-              <span className="info-label">Ngày thuê</span>
-              <span className="info-value">{fmtDate(order.rentFrom)}</span>
-            </div>
-          </div>
-          <div className="order-info-item">
-            <span className="info-icon">🔄</span>
-            <div>
-              <span className="info-label">Trả đồ</span>
-              <span className="info-value">{fmtDate(order.rentTo)}</span>
-            </div>
-          </div>
-          <div className="order-info-item">
-            <span className="info-icon">💰</span>
-            <div>
-              <span className="info-label">Tổng tiền</span>
-              <span className="info-value price-value">{fmtPrice(order.price * order.days)}đ</span>
-            </div>
-          </div>
-          <div className="order-info-item">
-            <span className="info-icon">📍</span>
-            <div>
-              <span className="info-label">Địa chỉ trả</span>
-              <span className="info-value small-text">{order.returnAddress}</span>
-            </div>
-          </div>
-        </div>
-
-        {daysLeft <= 2 && daysLeft >= 0 && (
-          <div className="urgency-banner">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            {daysLeft === 0 ? 'Hôm nay là ngày trả đồ!' : `Còn ${daysLeft} ngày phải trả đồ`}
-          </div>
-        )}
-
-        <div className="order-card-actions">
-          <button className="btn-extend" onClick={() => onExtend(order)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Gia hạn
-          </button>
-          <button className="btn-order-cancel" onClick={() => onCancel(order)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            Hủy đơn
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ---- History Order Card ---- */
-function HistoryOrderCard({ order, onReview }) {
-  const fmtPrice = p => p.toLocaleString('vi-VN')
-  const fmtDate = d => new Date(d).toLocaleDateString('vi-VN')
-  const s = STATUS_COLORS[order.status] || STATUS_COLORS['Hoàn thành']
+function OrderCard({ order, onDetail }) {
+  const item = firstItem(order)
+  const statusStyle = STATUS_COLORS[order.status] ?? STATUS_COLORS.CONFIRMED
+  const itemCount = order.items?.length ?? 0
 
   return (
     <div className="order-card history-card">
       <div className="order-card-img-wrap history-img-wrap">
-        <img src={order.image} alt={order.costume} className="order-card-img"
-          onError={e => { e.target.src = `https://picsum.photos/seed/${order.id}/300/400` }} />
+        <img
+          src={item.productImageUrl || `https://picsum.photos/seed/${order.id}/300/400`}
+          alt={item.productName || order.orderCode}
+          className="order-card-img"
+          onError={event => { event.currentTarget.src = `https://picsum.photos/seed/${order.id}/300/400` }}
+        />
         <div className="order-img-overlay" />
       </div>
 
       <div className="order-card-body">
         <div className="order-card-top">
           <div>
-            <h3 className="order-costume-name">{order.costume}</h3>
-            <p className="order-id-label">{order.id}</p>
+            <h3 className="order-costume-name">{item.productName || `Don ${order.orderCode}`}</h3>
+            <p className="order-id-label">{order.orderCode} · {itemCount} san pham</p>
           </div>
-          <span className="order-status-badge" style={{ background: s.bg, color: s.color, borderColor: s.border }}>
-            {order.status}
+          <span className="order-status-badge" style={statusStyle}>
+            {STATUS_LABELS[order.status] ?? order.status}
           </span>
         </div>
 
         <div className="order-info-row">
-          <span className="info-chip">📅 {fmtDate(order.rentFrom)} – {fmtDate(order.rentTo)}</span>
-          <span className="info-chip">📦 {order.days} ngày</span>
-          <span className="info-chip price-chip">💰 {fmtPrice(order.price * order.days)}đ</span>
+          <span className="info-chip">Thue: {date(order.rentFrom)} - {date(order.rentTo)}</span>
+          <span className="info-chip">Dat: {date(order.createdAt)}</span>
+          <span className="info-chip price-chip">Tong: {money(order.grandTotal)}</span>
         </div>
 
-        {order.reviewed && order.review ? (
-          <div className="review-display">
-            <div className="review-stars-row">
-              {[1,2,3,4,5].map(s => (
-                <span key={s} className={`review-star ${s <= order.review.rating ? 'filled' : ''}`}>★</span>
-              ))}
-              <span className="review-date-label">Đã đánh giá</span>
-            </div>
-            <p className="review-comment-text">"{order.review.comment}"</p>
-          </div>
-        ) : order.status === 'Hoàn thành' ? (
-          <button className="btn-write-review" onClick={() => onReview(order)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Viết đánh giá
-          </button>
-        ) : null}
+        <div className="order-info-row">
+          <span className="info-chip">Tien thue: {money(order.rentalTotal)}</span>
+          <span className="info-chip">Tien coc: {money(order.depositTotal)}</span>
+          <span className="info-chip">Bao hanh: {money(order.warrantyTotal)}</span>
+        </div>
+
+        <button className="btn-write-review" type="button" onClick={() => onDetail(order.id)}>
+          Xem chi tiet don hang
+        </button>
       </div>
     </div>
   )
 }
 
-/* ===== MAIN PAGE ===== */
-function MyOrders() {
-  const { orders: contextOrders } = useDemoStore()
-  const [activeTab, setActiveTab] = useState('active')
-  const [history, setHistory] = useState(HISTORY_ORDERS)
-  const [reviewModal, setReviewModal] = useState(null)
-  const [extendModal, setExtendModal] = useState(null)
-  const [cancelModal, setCancelModal] = useState(null)
+function ReviewForm({ order, item, onSubmitted }) {
+  const [rating, setRating] = useState(5)
+  const [content, setContent] = useState('')
+  const [imageText, setImageText] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
 
-  /* Merge context orders vào danh sách hiển thị */
-  const activeStatusKeys = ['pending_confirm', 'confirmed', 'active', 'waiting_return', 'pending_return']
-  const contextActive = contextOrders.filter(o => activeStatusKeys.includes(o.statusKey))
-  const allActive = [
-    ...contextActive,
-    ...ACTIVE_ORDERS.filter(o => !contextOrders.find(c => c.id === o.id)),
-  ]
-
-  const handleReviewSubmit = (orderId, review) => {
-    setHistory(prev => prev.map(o => o.id === orderId ? { ...o, reviewed: true, review } : o))
+  const submit = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setMessage('')
+    try {
+      await createProductReview({
+        orderId: order.id,
+        productId: item.productId,
+        rating: Number(rating),
+        content,
+        imageUrls: imageText.split('\n').map(value => value.trim()).filter(Boolean),
+      })
+      setMessage('Da gui danh gia thanh cong.')
+      setContent('')
+      setImageText('')
+      onSubmitted?.()
+    } catch (err) {
+      setMessage(err?.message || 'Khong gui duoc danh gia. Co the ban da danh gia san pham nay trong don.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
+    <form className="order-review-form" onSubmit={submit}>
+      <div className="review-form-row">
+        <label>
+          So sao
+          <select value={rating} onChange={event => setRating(event.target.value)}>
+            {[5, 4, 3, 2, 1].map(value => <option key={value} value={value}>{value} sao</option>)}
+          </select>
+        </label>
+      </div>
+      <textarea
+        value={content}
+        onChange={event => setContent(event.target.value)}
+        placeholder="Nhap noi dung danh gia ve chat luong, giao nhan, phu kien..."
+        required
+        minLength={5}
+      />
+      <textarea
+        value={imageText}
+        onChange={event => setImageText(event.target.value)}
+        placeholder="Link anh minh chung neu co, moi link mot dong"
+      />
+      <div className="review-form-actions">
+        <button className="btn-write-review" type="submit" disabled={saving}>
+          {saving ? 'Dang gui...' : 'Gui danh gia'}
+        </button>
+        {message && <span className="review-form-message">{message}</span>}
+      </div>
+    </form>
+  )
+}
+
+function OrderDetailModal({ order, onClose, onReviewSubmitted }) {
+  if (!order) return null
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-box" onClick={event => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3 className="modal-title">{order.orderCode}</h3>
+            <p className="modal-order-id">{STATUS_LABELS[order.status] ?? order.status}</p>
+          </div>
+          <button className="modal-close" type="button" onClick={onClose}>x</button>
+        </div>
+
+        <div className="modal-section">
+          <span className="form-label">Thong tin nhan hang</span>
+          <p className="modal-desc">
+            {order.customerName} · {order.customerPhone || '-'} · {order.customerEmail || '-'}<br />
+            {order.shippingAddress || 'Chua co dia chi'}
+          </p>
+        </div>
+
+        <div className="modal-section">
+          <span className="form-label">Thoi gian va thanh toan</span>
+          <p className="modal-desc">
+            Thue: {date(order.rentFrom)} - {date(order.rentTo)}<br />
+            Thanh toan: {order.paymentMethod || '-'} · Paid at: {order.paidAt ? new Date(order.paidAt).toLocaleString('vi-VN') : '-'}
+          </p>
+        </div>
+
+        <div className="modal-section">
+          <span className="form-label">San pham trong don</span>
+          {(order.items || []).map(item => (
+            <div className="modal-order-item-block" key={item.id}>
+            <div className="modal-costume-info">
+              <img
+                src={item.productImageUrl || `https://picsum.photos/seed/${item.productId}/120/160`}
+                alt={item.productName}
+                className="modal-img"
+              />
+              <div>
+                <p className="modal-costume-name">{item.productName}</p>
+                <p className="modal-order-id">
+                  {item.categoryName} · Size {item.size || '-'} · {item.quantity} x {item.days} ngay · {money(item.unitPrice)}/ngay
+                </p>
+                <p className="modal-order-id">Thanh tien: {money(item.lineTotal)}</p>
+              </div>
+            </div>
+            {order.status === 'COMPLETED' && item.productId && (
+              <ReviewForm order={order} item={item} onSubmitted={onReviewSubmitted} />
+            )}
+            </div>
+          ))}
+        </div>
+
+        <div className="review-display">
+          <p className="review-comment-text">Tien thue: {money(order.rentalTotal)}</p>
+          <p className="review-comment-text">Tien coc: {money(order.depositTotal)}</p>
+          <p className="review-comment-text">Bao hanh: {money(order.warrantyTotal)}</p>
+          <p className="review-comment-text">Tong thanh toan: {money(order.grandTotal)}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MyOrders() {
+  const [activeTab, setActiveTab] = useState('active')
+  const [orders, setOrders] = useState([])
+  const [detail, setDetail] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let ignore = false
+    setLoading(true)
+    getMyOrderHistory()
+      .then(data => {
+        if (!ignore) setOrders(Array.isArray(data) ? data : [])
+      })
+      .catch(err => {
+        if (!ignore) setError(err?.message || 'Khong tai duoc lich su mua. Hay dang nhap lai.')
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => { ignore = true }
+  }, [])
+
+  const activeOrders = useMemo(
+    () => orders.filter(order => ACTIVE_STATUSES.includes(order.status)),
+    [orders]
+  )
+  const historyOrders = useMemo(
+    () => orders.filter(order => !ACTIVE_STATUSES.includes(order.status)),
+    [orders]
+  )
+
+  const openDetail = (id) => {
+    setDetail({ loading: true })
+    getMyOrderDetail(id)
+      .then(data => setDetail(data))
+      .catch(err => setDetail({ error: err?.message || 'Khong tai duoc chi tiet don hang' }))
+  }
+
+  const visibleOrders = activeTab === 'active' ? activeOrders : historyOrders
+
+  return (
     <div className="myorders-page">
-      {/* Page Header */}
       <div className="orders-header-section">
         <div className="profile-title-row">
-          <div className="profile-title-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          </div>
+          <div className="profile-title-icon">✓</div>
           <div>
-            <h1 className="profile-title">Đơn Thuê Của Tôi</h1>
-            <p className="profile-subtitle">Theo dõi trang phục đang thuê và lịch sử đặt hàng</p>
+            <h1 className="profile-title">Don thue cua toi</h1>
+            <p className="profile-subtitle">Theo doi lich su mua, chi tiet don, thoi gian va tien bac.</p>
           </div>
         </div>
       </div>
 
-      {/* Summary Bar */}
       <div className="orders-summary-bar">
         <div className="summary-item">
-          <span className="summary-num">{allActive.length}</span>
-          <span className="summary-label">Đang xử lý</span>
+          <span className="summary-num">{activeOrders.length}</span>
+          <span className="summary-label">Dang xu ly</span>
         </div>
         <div className="summary-divider" />
         <div className="summary-item">
-          <span className="summary-num">{history.filter(o => o.status === 'Hoàn thành').length}</span>
-          <span className="summary-label">Hoàn thành</span>
+          <span className="summary-num">{historyOrders.filter(o => o.status === 'COMPLETED').length}</span>
+          <span className="summary-label">Hoan thanh</span>
         </div>
         <div className="summary-divider" />
         <div className="summary-item">
-          <span className="summary-num">{history.filter(o => !o.reviewed && o.status === 'Hoàn thành').length}</span>
-          <span className="summary-label">Chờ đánh giá</span>
+          <span className="summary-num">{money(orders.reduce((sum, order) => sum + Number(order.grandTotal || 0), 0))}</span>
+          <span className="summary-label">Tong tien</span>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="orders-tabs">
-        <button
-          className={`orders-tab ${activeTab === 'active' ? 'active' : ''}`}
-          onClick={() => setActiveTab('active')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          Đang Xử Lý
-          <span className="tab-count">{allActive.length}</span>
+        <button className={`orders-tab ${activeTab === 'active' ? 'active' : ''}`} onClick={() => setActiveTab('active')}>
+          Dang xu ly <span className="tab-count">{activeOrders.length}</span>
         </button>
-        <button
-          className={`orders-tab ${activeTab === 'history' ? 'active' : ''}`}
-          onClick={() => setActiveTab('history')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v10l4 2"/><path d="M3.05 11a9 9 0 1 0 .5-4"/><path d="M3 3v5h5"/></svg>
-          Lịch Sử
-          <span className="tab-count">{history.length}</span>
+        <button className={`orders-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+          Lich su <span className="tab-count">{historyOrders.length}</span>
         </button>
       </div>
 
-      {/* Tab Content */}
-      <div className="orders-content">
-        {activeTab === 'active' && (
-          <div className="orders-grid">
-            {allActive.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">👘</div>
-                <h3 className="empty-title">Bạn chưa có đơn thuê nào</h3>
-                <p className="empty-desc">Khám phá kho trang phục cosplay của chúng tôi</p>
-                <a href="/products" className="btn-browse">Xem trang phục</a>
-              </div>
-            ) : allActive.map(order => (
-              <ActiveOrderCard
-                key={order.id}
-                order={order}
-                onExtend={setExtendModal}
-                onCancel={setCancelModal}
-              />
-            ))}
-          </div>
-        )}
+      {loading && <div className="empty-state"><h3 className="empty-title">Dang tai don hang...</h3></div>}
+      {error && !loading && <div className="empty-state"><h3 className="empty-title">{error}</h3></div>}
 
-        {activeTab === 'history' && (
-          <div className="orders-list">
-            {history.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📦</div>
-                <h3 className="empty-title">Chưa có lịch sử thuê</h3>
-                <p className="empty-desc">Các đơn thuê đã hoàn thành sẽ xuất hiện ở đây</p>
-              </div>
-            ) : history.map(order => (
-              <HistoryOrderCard
-                key={order.id}
-                order={order}
-                onReview={setReviewModal}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Modals */}
-      {reviewModal && (
-        <ReviewModal
-          order={reviewModal}
-          onClose={() => setReviewModal(null)}
-          onSubmit={handleReviewSubmit}
-        />
+      {!loading && !error && (
+        <div className={activeTab === 'active' ? 'orders-grid' : 'orders-list'}>
+          {visibleOrders.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">□</div>
+              <h3 className="empty-title">Chua co don hang</h3>
+              <p className="empty-desc">Don hang se hien thi tai day sau khi backend tra ve du lieu.</p>
+            </div>
+          ) : visibleOrders.map(order => (
+            <OrderCard key={order.id} order={order} onDetail={openDetail} />
+          ))}
+        </div>
       )}
 
-      {extendModal && (
-        <ConfirmModal
-          title="Yêu Cầu Gia Hạn"
-          desc={`Bạn muốn gia hạn đơn "${extendModal.costume}"? Chúng tôi sẽ liên hệ xác nhận và thông báo phụ phí (nếu có).`}
-          onConfirm={() => { alert('Đã gửi yêu cầu gia hạn!'); setExtendModal(null) }}
-          onClose={() => setExtendModal(null)}
-          danger={false}
-        />
+      {detail?.loading && (
+        <div className="modal-backdrop" onClick={() => setDetail(null)}>
+          <div className="modal-box"><h3 className="modal-title">Dang tai chi tiet...</h3></div>
+        </div>
       )}
-
-      {cancelModal && (
-        <ConfirmModal
-          title="Xác Nhận Hủy Đơn"
-          desc={`Bạn có chắc muốn hủy đơn "${cancelModal.costume}"? Hành động này không thể hoàn tác và có thể áp dụng phí hủy.`}
-          onConfirm={() => { alert('Đã hủy đơn!'); setCancelModal(null) }}
-          onClose={() => setCancelModal(null)}
-          danger={true}
-        />
+      {detail?.error && (
+        <div className="modal-backdrop" onClick={() => setDetail(null)}>
+          <div className="modal-box"><h3 className="modal-title">{detail.error}</h3></div>
+        </div>
+      )}
+      {detail && !detail.loading && !detail.error && (
+        <OrderDetailModal order={detail} onClose={() => setDetail(null)} onReviewSubmitted={() => openDetail(detail.id)} />
       )}
     </div>
   )
