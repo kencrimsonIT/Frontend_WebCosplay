@@ -1,5 +1,17 @@
-import { useState } from 'react'
+import { useState, useContext } from 'react'
+import { AuthContext } from '../context/AuthContext'
+import { createComplaint } from '../api/complaint_api'
 import '../styles/Contact.css'
+
+const mapTopicToCategory = (topic) => {
+    switch (topic) {
+        case 'rental': return 'CUSTOMER_SERVICE';
+        case 'consult': return 'CUSTOMER_SERVICE';
+        case 'order': return 'DELIVERY_ISSUE';
+        case 'return': return 'CUSTOMER_SERVICE';
+        default: return 'OTHER';
+    }
+}
 
 const CONTACT_INFO = [
     {
@@ -65,6 +77,7 @@ function FaqItem({ item, index }) {
 }
 
 function Contact() {
+    const { user } = useContext(AuthContext)
     const [form, setForm] = useState({ name: '', email: '', phone: '', topic: '', message: '' })
     const [errors, setErrors] = useState({})
     const [sent, setSent] = useState(false)
@@ -85,15 +98,29 @@ function Contact() {
         setErrors(p => ({ ...p, [name]: '' }))
     }
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
         const errs = validate()
         if (Object.keys(errs).length) { setErrors(errs); return }
+
+        if (!user) {
+            setErrors({ form: 'Vui lòng đăng nhập để gửi tin nhắn hỗ trợ / khiếu nại.' });
+            return;
+        }
+
         setLoading(true)
-        setTimeout(() => {
+        try {
+            await createComplaint({
+                title: `Liên hệ từ ${form.name}: ${form.topic || 'Khác'}`,
+                category: mapTopicToCategory(form.topic),
+                description: `Email: ${form.email}\nSĐT: ${form.phone || 'Không có'}\n\nNội dung:\n${form.message}`
+            });
             setLoading(false)
             setSent(true)
-        }, 1400)
+        } catch (error) {
+            setLoading(false)
+            setErrors({ form: error?.message || 'Gửi thất bại. Vui lòng thử lại sau.' })
+        }
     }
 
     return (
@@ -211,6 +238,12 @@ function Contact() {
                                     />
                                     {errors.message && <p className="cform-error">{errors.message}</p>}
                                 </div>
+
+                                {errors.form && (
+                                    <div className="cform-error" style={{ padding: '10px', background: 'rgba(236,72,153,0.1)', borderRadius: '8px', marginBottom: '16px' }}>
+                                        {errors.form}
+                                    </div>
+                                )}
 
                                 <button type="submit" className={`btn-contact-submit ${loading ? 'loading' : ''}`} disabled={loading}>
                                     {loading ? (
