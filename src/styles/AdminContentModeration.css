@@ -1,0 +1,94 @@
+/* src/styles/AdminContentModeration.css */
+.mod-page { padding: 2rem; max-width: 960px; margin: 0 auto; }
+
+.mod-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--color-text-tertiary); }
+.mod-title  { font-size: 1.6rem; font-weight: 600; margin: 4px 0; }
+.mod-subtitle { font-size: 14px; color: var(--color-text-secondary); }
+.mod-header { margin-bottom: 1.5rem; }
+
+/* Stats */
+.mod-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+.mod-stat-card  { background: var(--color-background-secondary); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 4px; }
+.mod-stat-label { font-size: 12px; color: var(--color-text-secondary); }
+.mod-stat-value { font-size: 1.8rem; font-weight: 700; }
+.mod-stat-note  { font-size: 11px; color: var(--color-text-tertiary); }
+.mod-stat-card.flagged  .mod-stat-value { color: #ef4444; }
+.mod-stat-card.pending  .mod-stat-value { color: #f59e0b; }
+.mod-stat-card.approved .mod-stat-value { color: #10b981; }
+.mod-stat-card.hidden   .mod-stat-value { color: #6b7280; }
+
+/* Tabs */
+.mod-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.mod-tab  { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--color-border-tertiary);
+    font-size: 13px; cursor: pointer; background: transparent; color: var(--color-text-secondary); }
+.mod-tab.active { background: var(--color-border-primary); color: var(--color-text-primary); }
+.mod-tab-badge  { background: #ef4444; color: #fff; font-size: 11px; padding: 1px 6px;
+    border-radius: 10px; margin-left: 4px; }
+
+/* List */
+.mod-count   { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 12px; }
+.mod-loading { text-align: center; padding: 3rem; color: var(--color-text-secondary); }
+.mod-empty   { text-align: center; padding: 3rem; color: var(--color-text-tertiary); }
+.mod-empty span { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+.mod-list    { display: flex; flex-direction: column; gap: 12px; }
+
+/* Review card */
+.mod-review-card   { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary);
+    border-radius: 12px; padding: 1rem 1.25rem; }
+.mod-review-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.mod-review-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--color-border-primary);
+    display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0; }
+.mod-review-info   { flex: 1; }
+.mod-review-name   { font-weight: 600; font-size: 14px; display: block; }
+.mod-review-product { font-size: 12px; color: var(--color-text-secondary); }
+.mod-review-right  { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.mod-review-stars  { font-size: 13px; color: #f59e0b; }
+.mod-review-comment { font-size: 14px; color: var(--color-text-primary); line-height: 1.5; margin-bottom: 10px; }
+.mod-review-footer  { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mod-review-meta    { display: flex; gap: 12px; font-size: 12px; color: var(--color-text-tertiary); flex-wrap: wrap; }
+.mod-report-count   { color: #ef4444; }
+.mod-note-preview   { font-style: italic; }
+.mod-btn-action     { padding: 5px 14px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    background: var(--color-border-primary); border: none; color: var(--color-text-primary); }
+
+/* Badges */
+.mod-badge         { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-pending     { background: #f59e0b22; color: #f59e0b; }
+.badge-approved    { background: #10b98122; color: #10b981; }
+.badge-hidden      { background: #6b728022; color: #6b7280; }
+.badge-flagged     { background: #ef444422; color: #ef4444; }
+
+/* Pagination */
+.mod-pagination { display: flex; gap: 12px; align-items: center; justify-content: center;
+    margin-top: 1.5rem; font-size: 13px; }
+.mod-pagination button { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; background: transparent; color: var(--color-text-primary); }
+.mod-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Modal */
+.mod-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000;
+    display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.mod-modal         { background: var(--color-background-primary); border-radius: 14px;
+    padding: 1.5rem; width: 100%; max-width: 500px; }
+.mod-modal-title   { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+.mod-modal-review  { background: var(--color-background-secondary); border-radius: 8px;
+    padding: 12px; margin-bottom: 1rem; }
+.mod-modal-stars   { font-size: 16px; color: #f59e0b; margin-bottom: 6px; }
+.mod-modal-comment { font-size: 14px; font-style: italic; margin-bottom: 6px; }
+.mod-modal-meta    { font-size: 12px; color: var(--color-text-secondary); }
+.mod-modal-reports { margin-top: 6px; font-size: 12px; color: #ef4444; }
+.mod-action-tabs   { display: flex; gap: 8px; margin-bottom: 12px; }
+.mod-action-tab    { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; font-size: 13px; background: transparent; color: var(--color-text-primary); }
+.mod-action-tab.active-approved { background: #10b98122; border-color: #10b981; color: #10b981; }
+.mod-action-tab.active-hidden   { background: #ef444422; border-color: #ef4444; color: #ef4444; }
+.mod-note-input  { width: 100%; border-radius: 8px; border: 1px solid var(--color-border-tertiary);
+    background: var(--color-background-secondary); color: var(--color-text-primary);
+    padding: 8px 10px; font-size: 13px; resize: vertical; }
+.mod-error       { font-size: 12px; color: #ef4444; margin-top: 6px; }
+.mod-modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1rem; }
+.mod-btn-cancel  { padding: 8px 18px; border-radius: 7px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; background: transparent; color: var(--color-text-secondary); font-size: 13px; }
+.mod-btn-submit  { padding: 8px 18px; border-radius: 7px; border: none; background: var(--color-border-primary);
+    color: var(--color-text-primary); font-size: 13px; cursor: pointer; }
+.mod-btn-submit.danger { background: #ef4444; color: #fff; }

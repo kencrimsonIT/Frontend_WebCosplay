@@ -19,6 +19,23 @@ export const getOrder = async (id) => {
         throw error.response?.data || error.message;
     }
 };
+export const getMyOrders = async () => {
+    try {
+        const response = await axiosInstance.get("/api/orders/my");
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+export const cancelOrder = async (id, reason = "") => {
+    try {
+        const response = await axiosInstance.post(`/api/orders/${id}/cancel`, { reason });
+        return response.data;
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
 
 export const getMyOrderHistory = async (params = {}) => {
     try {
