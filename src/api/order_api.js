@@ -17,3 +17,13 @@ export const getOrder = async (id) => {
         throw error.response?.data || error.message;
     }
 };
+export const checkPromotion = async (code, cartTotal) => {
+    try {
+        const response = await axiosInstance.get('/api/promotions/check', {
+            params: { code, cartTotal }
+        });
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
