@@ -1,5 +1,5 @@
-import { useState, useContext } from 'react'
-import { AuthContext } from '../context/AuthContext'
+import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 import { createComplaint } from '../api/complaint_api'
 import '../styles/Contact.css'
 
@@ -77,7 +77,7 @@ function FaqItem({ item, index }) {
 }
 
 function Contact() {
-    const { user } = useContext(AuthContext)
+    const { user } = useAuth()
     const [form, setForm] = useState({ name: '', email: '', phone: '', topic: '', message: '' })
     const [errors, setErrors] = useState({})
     const [sent, setSent] = useState(false)
