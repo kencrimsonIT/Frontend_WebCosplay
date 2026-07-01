@@ -4,13 +4,7 @@ import { getProductById } from '../api/product_api'
 import { normalizeSizeGuide } from '../data/sizeGuide'
 import { useDemoStore } from '../context/DemoStore'
 import './ProductDetail.css'
-
-const WARRANTY_PACKAGES = [
-  { key: 'none', label: 'Không bảo hành', fee: 0, refundNote: 'Tự chịu trách nhiệm nếu hư hỏng.' },
-  { key: 'basic', label: 'Cơ bản', fee: 30000, refundNote: 'Hoàn tối đa 80% cọc khi có hư hỏng nhẹ.' },
-  { key: 'standard', label: 'Tiêu chuẩn', fee: 60000, refundNote: 'Hoàn tối đa 90% cọc, bao gồm mất phụ kiện nhỏ.' },
-  { key: 'premium', label: 'Cao cấp', fee: 100000, refundNote: 'Hỗ trợ mức hoàn cọc cao nhất cho lỗi thông thường.' },
-]
+import {getPublicPlans} from "../api/insurance_api.js";
 
 function ProductDetail() {
   const { id } = useParams()
@@ -26,6 +20,10 @@ function ProductDetail() {
   const [selectedWarranty, setSelectedWarranty] = useState('none')
   const [errors, setErrors] = useState({})
   const [added, setAdded] = useState(false)
+
+  const [warrantyPackages, setWarrantyPackages] = useState([
+    { key: 'none', label: 'Không bảo hiểm', fee: 0, refundNote: 'Tự chịu trách nhiệm nếu hư hỏng.' }
+  ])
 
   useEffect(() => {
     getProductById(id)
@@ -46,6 +44,23 @@ function ProductDetail() {
       })
       .catch(err => console.error("Failed to fetch product:", err))
       .finally(() => setLoading(false))
+
+    getPublicPlans().then(response => {
+      const backendPlans = (response.data || []).map(plan => ({
+        key: plan.id, // Dùng ID từ DB làm key
+        label: plan.name,
+        fee: plan.feeAmount,
+        refundNote: plan.description || `Bảo vệ tối đa ${plan.coverPercent}% cọc`
+      }))
+
+      // Gộp tùy chọn "Không bảo hiểm" với dữ liệu từ DB
+      setWarrantyPackages([
+        { key: 'none', label: 'Không bảo hiểm', fee: 0, refundNote: 'Tự chịu trách nhiệm nếu hư hỏng.' },
+        ...backendPlans
+      ])
+    }).catch(err => console.error("Lỗi tải gói bảo hiểm:", err))
+
+
   }, [id])
 
   if (loading) {
@@ -76,7 +91,7 @@ function ProductDetail() {
   const days = calcDays()
   const unitPrice = product.pricePerDay ?? product.price ?? 0
   const rentalPrice = days * unitPrice
-  const warrantyFee = WARRANTY_PACKAGES.find(item => item.key === selectedWarranty)?.fee ?? 0
+  const warrantyFee = warrantyPackages.find(item => item.key === selectedWarranty)?.fee ?? 0
   const totalPrice = rentalPrice + warrantyFee
 
   const validate = () => {
@@ -256,7 +271,7 @@ function ProductDetail() {
           <div className="pd-field-group">
             <label className="pd-field-label">🛡️ Gói bảo hiểm (tùy chọn)</label>
             <div className="pd-warranty-grid">
-              {WARRANTY_PACKAGES.map(pkg => (
+              {warrantyPackages.map(pkg => (
                 <button
                   key={pkg.key}
                   type="button"
@@ -280,7 +295,7 @@ function ProductDetail() {
                 {selectedSize && <span className="pd-summary-size">Size đã chọn: {selectedSize}</span>}
                 {warrantyFee > 0 && (
                   <span className="pd-summary-warranty">
-                    🛡️ Bảo hành {WARRANTY_PACKAGES.find(item => item.key === selectedWarranty)?.label}
+                    🛡️ Bảo hành {warrantyPackages.find(item => item.key === selectedWarranty)?.label}
                   </span>
                 )}
               </div>
