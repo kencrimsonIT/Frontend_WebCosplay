@@ -1,181 +1,195 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  getSellerReviews,
+  respondSellerReview,
+  updateSellerReviewVisibility,
+} from '../api/review_api'
 import '../styles/Reviews.css'
 
-const reviewSummary = [
-  { label: 'Đánh giá mới hôm nay', value: '26', note: '+8 phản hồi cần duyệt' },
-  { label: 'Điểm trung bình', value: '4.8/5', note: 'Tăng 0.2 so với tuần trước' },
-  { label: 'Đã phản hồi', value: '91%', note: 'Tỷ lệ phản hồi trong 24 giờ' },
-  { label: 'Khách cần liên hệ', value: '7', note: 'Có 3 đánh giá 2 sao trở xuống' },
+const FILTERS = [
+  { key: '', label: 'Tat ca' },
+  { key: 'VISIBLE', label: 'Dang hien' },
+  { key: 'HIDDEN', label: 'Da an' },
 ]
 
-const reviewFilters = [
-  { label: 'Tất cả', count: 128, active: true },
-  { label: 'Chưa phản hồi', count: 18 },
-  { label: '1-2 sao', count: 7 },
-  { label: 'Có ảnh đính kèm', count: 23 },
-]
-
-const reviews = [
-  {
-    id: 'RV-2406-01',
-    customer: 'Lê Thảo Vy',
-    costume: 'Nezuko Kamado Premium',
-    rating: 5,
-    date: '06/04/2026',
-    channel: 'Website',
-    status: 'Đã phản hồi',
-    sentiment: 'positive',
-    comment: 'Đồ rất sạch, lên form đẹp và nhân viên hỗ trợ chỉnh phụ kiện cực nhanh. Mình sẽ thuê lại cho sự kiện tuần sau.',
-    response: 'Cảm ơn Vy, shop đã ghi chú size và phụ kiện để hỗ trợ bạn nhanh hơn ở lần thuê tiếp theo.',
-  },
-  {
-    id: 'RV-2406-02',
-    customer: 'Trần Minh Khang',
-    costume: 'Spider-Man Movie Suit',
-    rating: 3,
-    date: '06/04/2026',
-    channel: 'Facebook',
-    status: 'Chờ phản hồi',
-    sentiment: 'neutral',
-    comment: 'Trang phục ổn nhưng giao hàng sát giờ hơn dự kiến nên mình hơi cập rập. Mong shop cải thiện khâu xác nhận ship.',
-    response: '',
-  },
-  {
-    id: 'RV-2406-03',
-    customer: 'Nguyễn Hà My',
-    costume: 'Sailor Moon Deluxe',
-    rating: 2,
-    date: '05/04/2026',
-    channel: 'Website',
-    status: 'Ưu tiên xử lý',
-    sentiment: 'negative',
-    comment: 'Váy đẹp nhưng nơ áo bị lệch nhẹ và mình phải tự chỉnh lại trước giờ chụp. Cần kiểm tra kỹ hơn trước khi giao.',
-    response: '',
-  },
-  {
-    id: 'RV-2406-04',
-    customer: 'Phạm Hoàng Long',
-    costume: 'Raiden Shogun',
-    rating: 4,
-    date: '05/04/2026',
-    channel: 'Zalo',
-    status: 'Đã phản hồi',
-    sentiment: 'positive',
-    comment: 'Chất liệu đẹp, chụp ảnh lên ổn. Nếu thêm hướng dẫn mặc nhanh cho người mới thì sẽ tiện hơn nhiều.',
-    response: 'Shop đã bổ sung thẻ hướng dẫn mặc nhanh vào đơn Raiden từ hôm nay, cảm ơn bạn đã góp ý rất hữu ích.',
-  },
-]
-
-const responseQueue = [
-  {
-    customer: 'Nguyễn Hà My',
-    priority: 'Cao',
-    issue: 'Phản hồi 2 sao về lỗi phụ kiện',
-    action: 'Liên hệ xin lỗi và tặng voucher 15%',
-  },
-  {
-    customer: 'Trần Minh Khang',
-    priority: 'Trung bình',
-    issue: 'Phàn nàn giao hàng sát giờ',
-    action: 'Xác nhận lại quy trình giao nhận',
-  },
-  {
-    customer: 'Khánh Linh Studio',
-    priority: 'Thấp',
-    issue: 'Xin ảnh hậu trường để đăng lại',
-    action: 'Gửi tin nhắn cảm ơn và xin phép sử dụng ảnh',
-  },
-]
-
-const feedbackTopics = [
-  { label: 'Chất lượng trang phục', value: 88 },
-  { label: 'Tốc độ hỗ trợ', value: 76 },
-  { label: 'Giao nhận đúng giờ', value: 61 },
-  { label: 'Phụ kiện đi kèm', value: 69 },
-]
+function formatDate(value) {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('vi-VN')
+}
 
 function StarRating({ value }) {
   return (
     <div className="review-stars" aria-label={`${value} sao`}>
       {Array.from({ length: 5 }, (_, index) => (
-        <span key={index} className={index < value ? 'filled' : ''}>★</span>
+        <span key={index} className={index < value ? 'filled' : ''}>*</span>
       ))}
     </div>
   )
 }
 
-function ReviewCard({ review }) {
+function ReviewCard({ review, onRespond, onVisibility }) {
+  const [responseText, setResponseText] = useState(review.sellerResponse || '')
+  const [busy, setBusy] = useState(false)
+  const sentiment = review.rating <= 2 ? 'negative' : review.rating === 3 ? 'neutral' : 'positive'
+
+  const submitResponse = async () => {
+    if (!responseText.trim()) return
+    setBusy(true)
+    try {
+      await onRespond(review.id, responseText)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleVisibility = async () => {
+    setBusy(true)
+    try {
+      await onVisibility(review.id, review.status === 'VISIBLE' ? 'HIDDEN' : 'VISIBLE')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <article className={`review-card review-${review.sentiment}`}>
+    <article className={`review-card review-${sentiment}`}>
       <div className="review-card-head">
         <div>
           <div className="review-card-topline">
-            <h3>{review.customer}</h3>
-            <span className="review-id">{review.id}</span>
+            <h3>{review.buyerName}</h3>
+            <span className="review-id">#{review.id}</span>
           </div>
-          <p className="review-product">{review.costume}</p>
+          <p className="review-product">{review.productName} - {review.orderCode}</p>
         </div>
 
         <div className="review-card-side">
           <StarRating value={review.rating} />
-          <span className={`review-status ${review.sentiment}`}>{review.status}</span>
+          <span className={`review-status ${sentiment}`}>
+            {review.status === 'VISIBLE' ? 'Dang hien' : 'Da an'}
+          </span>
         </div>
       </div>
 
       <div className="review-meta">
-        <span>{review.date}</span>
-        <span>{review.channel}</span>
+        <span>{formatDate(review.createdAt)}</span>
+        <span>{review.sellerResponse ? 'Da phan hoi' : 'Chua phan hoi'}</span>
+        <span>{review.likeCount ?? 0} luot thich</span>
       </div>
 
-      <p className="review-comment">{review.comment}</p>
+      <p className="review-comment">{review.content}</p>
+
+      {review.imageUrls?.length > 0 && (
+        <div className="review-image-list">
+          {review.imageUrls.map(url => <img key={url} src={url} alt="Review" />)}
+        </div>
+      )}
 
       <div className="review-response-box">
-        <span className="response-label">Phản hồi từ shop</span>
-        <p>{review.response || 'Chưa có phản hồi. Nên xử lý trong 24 giờ để giữ trải nghiệm khách hàng.'}</p>
+        <span className="response-label">Phan hoi tu shop</span>
+        <textarea
+          value={responseText}
+          onChange={event => setResponseText(event.target.value)}
+          placeholder="Nhap phan hoi lich su, ro cach shop xu ly neu co van de..."
+        />
+        {review.sellerRespondedAt && <p>Cap nhat: {formatDate(review.sellerRespondedAt)}</p>}
       </div>
 
       <div className="review-actions">
-        <button className="review-btn subtle">Ẩn đánh giá</button>
-        <button className="review-btn secondary">Soạn phản hồi</button>
-        <button className="review-btn primary">Xem chi tiết</button>
+        <button className="review-btn subtle" type="button" onClick={toggleVisibility} disabled={busy}>
+          {review.status === 'VISIBLE' ? 'An danh gia' : 'Hien lai'}
+        </button>
+        <button className="review-btn secondary" type="button" onClick={submitResponse} disabled={busy || !responseText.trim()}>
+          Luu phan hoi
+        </button>
       </div>
     </article>
   )
 }
 
 function Reviews() {
+  const [filter, setFilter] = useState('')
+  const [reviews, setReviews] = useState([])
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadReviews = async (status = filter) => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await getSellerReviews(status ? { status } : {})
+      setReviews(data.reviews || [])
+      setSummary(data.summary || null)
+    } catch (err) {
+      setError(err?.message || 'Khong tai duoc danh sach danh gia.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadReviews(filter)
+  }, [filter])
+
+  const lowRating = useMemo(() => reviews.filter(item => item.rating <= 2), [reviews])
+  const pendingResponse = useMemo(() => reviews.filter(item => !item.sellerResponse), [reviews])
+
+  const respond = async (id, responseText) => {
+    await respondSellerReview(id, responseText)
+    await loadReviews()
+  }
+
+  const updateVisibility = async (id, status) => {
+    await updateSellerReviewVisibility(id, status)
+    await loadReviews()
+  }
+
   return (
     <div className="reviews-page">
       <section className="reviews-hero">
         <div>
-          <span className="page-kicker">Quản lý đánh giá</span>
+          <span className="page-kicker">Quan ly danh gia</span>
           <h1 className="page-title">Reviews / Feedback</h1>
-          <p className="page-subtitle">Theo dõi đánh giá, ý kiến phản hồi và xử lý các trường hợp cần chăm sóc khách hàng ngay.</p>
+          <p className="page-subtitle">Theo doi danh gia that tu don hang da hoan thanh va phan hoi khach hang.</p>
         </div>
 
         <div className="reviews-hero-stats">
           <div className="hero-stat-card">
-            <span className="hero-stat-value">4.8</span>
-            <span className="hero-stat-label">Điểm trung bình</span>
+            <span className="hero-stat-value">{summary?.averageRating ?? 0}</span>
+            <span className="hero-stat-label">Diem TB</span>
           </div>
           <div className="hero-stat-card">
-            <span className="hero-stat-value">18</span>
-            <span className="hero-stat-label">Chờ phản hồi</span>
+            <span className="hero-stat-value">{summary?.pendingResponse ?? 0}</span>
+            <span className="hero-stat-label">Cho phan hoi</span>
           </div>
           <div className="hero-stat-card">
-            <span className="hero-stat-value">7</span>
-            <span className="hero-stat-label">Cần ưu tiên</span>
+            <span className="hero-stat-value">{summary?.lowRatingReviews ?? 0}</span>
+            <span className="hero-stat-label">1-2 sao</span>
           </div>
         </div>
       </section>
 
       <section className="reviews-summary-grid">
-        {reviewSummary.map((item) => (
-          <article className="summary-card" key={item.label}>
-            <span className="summary-label">{item.label}</span>
-            <span className="summary-value">{item.value}</span>
-            <span className="summary-trend">{item.note}</span>
-          </article>
-        ))}
+        <article className="summary-card">
+          <span className="summary-label">Tong danh gia</span>
+          <span className="summary-value">{summary?.totalReviews ?? 0}</span>
+          <span className="summary-trend">Tat ca review cua san pham shop</span>
+        </article>
+        <article className="summary-card">
+          <span className="summary-label">Dang hien</span>
+          <span className="summary-value">{summary?.visibleReviews ?? 0}</span>
+          <span className="summary-trend">Khach co the xem</span>
+        </article>
+        <article className="summary-card">
+          <span className="summary-label">Da an</span>
+          <span className="summary-value">{summary?.hiddenReviews ?? 0}</span>
+          <span className="summary-trend">Chi seller quan ly</span>
+        </article>
+        <article className="summary-card">
+          <span className="summary-label">Can uu tien</span>
+          <span className="summary-value">{lowRating.length}</span>
+          <span className="summary-trend">Review diem thap trong bo loc hien tai</span>
+        </article>
       </section>
 
       <section className="reviews-grid">
@@ -183,45 +197,64 @@ function Reviews() {
           <article className="reviews-panel filter-panel">
             <div className="card-head">
               <div>
-                <h2 className="card-title">Bộ lọc đánh giá</h2>
-                <p className="card-desc">Ưu tiên xử lý các đánh giá chưa phản hồi và nhóm có điểm thấp</p>
+                <h2 className="card-title">Bo loc danh gia</h2>
+                <p className="card-desc">Loc theo trang thai hien thi de seller xu ly nhanh.</p>
               </div>
             </div>
 
             <div className="filter-chip-list">
-              {reviewFilters.map((filter) => (
-                <button key={filter.label} className={`filter-chip ${filter.active ? 'active' : ''}`}>
-                  <span>{filter.label}</span>
-                  <strong>{filter.count}</strong>
+              {FILTERS.map(item => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`filter-chip ${filter === item.key ? 'active' : ''}`}
+                  onClick={() => setFilter(item.key)}
+                >
+                  <span>{item.label}</span>
                 </button>
               ))}
             </div>
           </article>
 
-          <div className="review-list">
-            {reviews.map((review) => <ReviewCard key={review.id} review={review} />)}
-          </div>
+          {loading && <article className="reviews-panel"><p className="card-desc">Dang tai danh gia...</p></article>}
+          {error && !loading && <article className="reviews-panel"><p className="card-desc">{error}</p></article>}
+          {!loading && !error && (
+            <div className="review-list">
+              {reviews.length === 0 ? (
+                <article className="reviews-panel"><p className="card-desc">Chua co danh gia nao.</p></article>
+              ) : reviews.map(review => (
+                <ReviewCard
+                  key={review.id}
+                  review={review}
+                  onRespond={respond}
+                  onVisibility={updateVisibility}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <aside className="reviews-sidebar">
           <article className="reviews-panel compact-panel">
             <div className="card-head compact-head">
               <div>
-                <h2 className="card-title">Hàng chờ phản hồi</h2>
-                <p className="card-desc">Các khách hàng nên được liên hệ sớm</p>
+                <h2 className="card-title">Hang cho phan hoi</h2>
+                <p className="card-desc">Nen tra loi cac review nay som.</p>
               </div>
             </div>
 
             <div className="queue-list">
-              {responseQueue.map((item) => (
-                <div className="queue-item" key={`${item.customer}-${item.issue}`}>
+              {pendingResponse.length === 0 ? (
+                <p className="card-desc">Khong co review dang cho.</p>
+              ) : pendingResponse.slice(0, 5).map(item => (
+                <div className="queue-item" key={item.id}>
                   <div>
-                    <h3>{item.customer}</h3>
-                    <p>{item.issue}</p>
+                    <h3>{item.buyerName}</h3>
+                    <p>{item.productName}</p>
                   </div>
                   <div className="queue-meta">
-                    <span>{item.priority}</span>
-                    <strong>{item.action}</strong>
+                    <span>{item.rating} sao</span>
+                    <strong>{item.content}</strong>
                   </div>
                 </div>
               ))}
@@ -231,20 +264,23 @@ function Reviews() {
           <article className="reviews-panel compact-panel highlight-panel">
             <div className="card-head compact-head">
               <div>
-                <h2 className="card-title">Chủ đề phản hồi</h2>
-                <p className="card-desc">Những nhóm nội dung khách nhắc đến nhiều nhất</p>
+                <h2 className="card-title">Can uu tien</h2>
+                <p className="card-desc">Review 1-2 sao de shop xu ly chat luong.</p>
               </div>
             </div>
 
-            <div className="topic-list">
-              {feedbackTopics.map((topic) => (
-                <div className="topic-row" key={topic.label}>
-                  <div className="topic-head">
-                    <span>{topic.label}</span>
-                    <strong>{topic.value}%</strong>
+            <div className="queue-list">
+              {lowRating.length === 0 ? (
+                <p className="card-desc">Chua co review diem thap.</p>
+              ) : lowRating.slice(0, 5).map(item => (
+                <div className="queue-item" key={item.id}>
+                  <div>
+                    <h3>{item.productName}</h3>
+                    <p>{item.content}</p>
                   </div>
-                  <div className="topic-track">
-                    <div className="topic-fill" style={{ width: `${topic.value}%` }} />
+                  <div className="queue-meta">
+                    <span>{item.rating} sao</span>
+                    <strong>{formatDate(item.createdAt)}</strong>
                   </div>
                 </div>
               ))}

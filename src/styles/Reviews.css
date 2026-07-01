@@ -2,6 +2,33 @@
   animation: profileFadeIn 0.45s ease both;
 }
 
+.review-response-box textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  color: var(--text-primary);
+  background: rgba(15, 23, 42, 0.46);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.review-image-list {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.review-image-list img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
 .reviews-hero {
   display: flex;
   justify-content: space-between;

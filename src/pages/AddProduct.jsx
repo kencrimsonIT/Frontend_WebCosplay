@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useDemoStore } from '../context/DemoStore'
 import { getActiveCategories } from '../api/category_api'
+import { createSellerProduct } from '../api/seller_api'
 import { SIZE_GUIDE_FIELDS, SIZE_OPTIONS, createSizeGuide } from '../data/sizeGuide'
 import '../styles/AddProduct.css'
 
@@ -36,6 +37,8 @@ function AddProduct() {
   const [accessories, setAccessories] = useState([''])
   const [specs, setSpecs] = useState({ material: '', color: '', pieces: '', origin: '', suitable: '' })
   const [allowWarranty, setAllowWarranty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     getActiveCategories()
@@ -86,7 +89,7 @@ function AddProduct() {
     setSpecs(prev => ({ ...prev, [key]: value }))
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     const product = {
       ...formData,
@@ -97,9 +100,41 @@ function AddProduct() {
       allowWarranty,
     }
 
-    addProduct(product)
-    setAddedProduct(product)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const cleanAccessories = accessories.filter(item => item.trim() !== '')
+    const payload = {
+      name: formData.name,
+      categoryId: Number(formData.category),
+      description: [
+        formData.description,
+        selectedSizes.length > 0 ? `Size: ${selectedSizes.join(', ')}` : '',
+        cleanAccessories.length > 0 ? `Phu kien: ${cleanAccessories.join(', ')}` : '',
+        allowWarranty ? 'Ho tro goi bao hiem khi thue.' : '',
+      ].filter(Boolean).join('\n'),
+      pricePerDay: Number(formData.rentalPrice),
+      deposit: Number(formData.deposit),
+      imageUrl: formData.image,
+      visible: true,
+      quantity: 1,
+      inventoryStatus: 'AVAILABLE',
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      const savedProduct = await createSellerProduct(payload)
+      addProduct(product)
+      setAddedProduct({
+        ...product,
+        id: savedProduct.id,
+        categoryName: savedProduct.categoryName,
+        backendProduct: savedProduct,
+      })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (err) {
+      setError(err?.message || 'Khong dang duoc san pham. Hay kiem tra dang nhap seller.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleAddMore = () => {
@@ -133,7 +168,7 @@ function AddProduct() {
             <div className="ap-done-info">
               <h2 className="ap-done-name">{addedProduct.name}</h2>
               <div className="ap-done-meta">
-                <span>{CATEGORIES.find(category => category.key === addedProduct.category)?.label ?? addedProduct.category}</span>
+                <span>{addedProduct.categoryName ?? apiCategories.find(category => String(category.id) === String(addedProduct.category))?.name ?? addedProduct.category}</span>
                 {addedProduct.sizes?.length > 0 && <span>Size: {addedProduct.sizes.join(', ')}</span>}
                 <span>{Number(addedProduct.rentalPrice).toLocaleString('vi-VN')}đ/ngày</span>
                 <span>Cọc: {Number(addedProduct.deposit).toLocaleString('vi-VN')}đ</span>
@@ -351,7 +386,10 @@ function AddProduct() {
           )}
         </div>
 
-        <button type="submit" className="btn-submit">Đăng Trang Phục Cho Thuê</button>
+        {error && <p className="ap-section-desc">{error}</p>}
+        <button type="submit" className="btn-submit" disabled={saving}>
+          {saving ? 'Dang dang san pham...' : 'Dang Trang Phuc Cho Thue'}
+        </button>
       </form>
     </div>
   )

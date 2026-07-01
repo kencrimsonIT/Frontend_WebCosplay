@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getProductById } from '../api/product_api'
+import { deleteProductReview, likeProductReview, unlikeProductReview } from '../api/review_api'
 import { normalizeSizeGuide } from '../data/sizeGuide'
+import { useAuth } from '../context/AuthContext'
 import { useDemoStore } from '../context/DemoStore'
 import './ProductDetail.css'
 import {getPublicPlans} from "../api/insurance_api.js";
@@ -10,6 +12,7 @@ function ProductDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { addToCart } = useDemoStore()
+  const { user } = useAuth()
   
   const [product, setProduct] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -135,6 +138,42 @@ function ProductDetail() {
       setAdded(false)
       navigate('/cart')
     }, 1000)
+  }
+
+  const handleToggleReviewLike = async (review) => {
+    try {
+      const updated = review.likedByCurrentUser
+        ? await unlikeProductReview(review.id)
+        : await likeProductReview(review.id)
+      setProduct(current => ({
+        ...current,
+        reviews: (current.reviews || []).map(item => item.id === updated.id ? updated : item),
+      }))
+    } catch (err) {
+      setErrors(current => ({
+        ...current,
+        reviewLike: err?.message || 'Can dang nhap de thich danh gia.',
+      }))
+    }
+  }
+
+  const handleDeleteReview = async (review) => {
+    const ok = window.confirm('Xoa danh gia nay?')
+    if (!ok) return
+
+    try {
+      await deleteProductReview(review.id)
+      setProduct(current => ({
+        ...current,
+        reviews: (current.reviews || []).filter(item => item.id !== review.id),
+        reviewCount: Math.max(Number(current.reviewCount || 0) - 1, 0),
+      }))
+    } catch (err) {
+      setErrors(current => ({
+        ...current,
+        reviewLike: err?.message || 'Khong xoa duoc danh gia nay.',
+      }))
+    }
   }
 
   return (
@@ -341,12 +380,19 @@ function ProductDetail() {
         </div>
       </div>
 
-      <DetailTabs product={product} sizeGuideRows={sizeGuideRows} />
+      {errors.reviewLike && <p className="pd-error">{errors.reviewLike}</p>}
+      <DetailTabs
+        product={product}
+        sizeGuideRows={sizeGuideRows}
+        currentUser={user}
+        onToggleReviewLike={handleToggleReviewLike}
+        onDeleteReview={handleDeleteReview}
+      />
     </div>
   )
 }
 
-function DetailTabs({ product, sizeGuideRows }) {
+function DetailTabs({ product, sizeGuideRows, currentUser, onToggleReviewLike, onDeleteReview }) {
   const [tab, setTab] = useState('desc')
 
   const tabs = [
@@ -436,16 +482,42 @@ function DetailTabs({ product, sizeGuideRows }) {
             {product.reviews?.length ? product.reviews.map((review, index) => (
               <div key={index} className="pd-review-card">
                 <div className="pd-reviewer">
-                  <div className="pd-avatar">{review.name.charAt(0)}</div>
+                  <div className="pd-avatar">{(review.buyerName || review.name || 'K').charAt(0)}</div>
                   <div>
-                    <p className="pd-reviewer-name">{review.name}</p>
-                    <p className="pd-reviewer-date">{review.date}</p>
+                    <p className="pd-reviewer-name">{review.buyerName || review.name || 'Khach hang'}</p>
+                    <p className="pd-reviewer-date">
+                      {review.createdAt ? new Date(review.createdAt).toLocaleDateString('vi-VN') : review.date}
+                    </p>
                   </div>
                   <div className="pd-review-stars">
                     {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
                   </div>
                 </div>
-                <p className="pd-review-text">{review.comment}</p>
+                <p className="pd-review-text">{review.content || review.comment}</p>
+                {review.sellerResponse && (
+                  <div className="pd-review-response">
+                    <strong>Phan hoi tu shop</strong>
+                    <p>{review.sellerResponse}</p>
+                  </div>
+                )}
+                <div className="pd-review-actions">
+                  <button
+                    type="button"
+                    className={`pd-review-like ${review.likedByCurrentUser ? 'active' : ''}`}
+                    onClick={() => onToggleReviewLike?.(review)}
+                  >
+                    {review.likedByCurrentUser ? 'Unlike' : 'Like'} ({review.likeCount ?? 0})
+                  </button>
+                  {currentUser?.id && Number(currentUser.id) === Number(review.buyerId) && (
+                    <button
+                      type="button"
+                      className="pd-review-delete"
+                      onClick={() => onDeleteReview?.(review)}
+                    >
+                      Xoa danh gia
+                    </button>
+                  )}
+                </div>
               </div>
             )) : <p className="pd-tab-empty">Chưa có đánh giá nào.</p>}
           </div>
