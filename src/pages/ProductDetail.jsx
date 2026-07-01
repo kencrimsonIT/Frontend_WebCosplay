@@ -1,21 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getProductById } from '../api/product_api'
+import { deleteProductReview, likeProductReview, unlikeProductReview } from '../api/review_api'
 import { normalizeSizeGuide } from '../data/sizeGuide'
+import { useAuth } from '../context/AuthContext'
 import { useDemoStore } from '../context/DemoStore'
 import './ProductDetail.css'
-
-const WARRANTY_PACKAGES = [
-  { key: 'none', label: 'Không bảo hành', fee: 0, refundNote: 'Tự chịu trách nhiệm nếu hư hỏng.' },
-  { key: 'basic', label: 'Cơ bản', fee: 30000, refundNote: 'Hoàn tối đa 80% cọc khi có hư hỏng nhẹ.' },
-  { key: 'standard', label: 'Tiêu chuẩn', fee: 60000, refundNote: 'Hoàn tối đa 90% cọc, bao gồm mất phụ kiện nhỏ.' },
-  { key: 'premium', label: 'Cao cấp', fee: 100000, refundNote: 'Hỗ trợ mức hoàn cọc cao nhất cho lỗi thông thường.' },
-]
+import {getPublicPlans} from "../api/insurance_api.js";
 
 function ProductDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { addToCart } = useDemoStore()
+  const { user } = useAuth()
   
   const [product, setProduct] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -26,6 +23,10 @@ function ProductDetail() {
   const [selectedWarranty, setSelectedWarranty] = useState('none')
   const [errors, setErrors] = useState({})
   const [added, setAdded] = useState(false)
+
+  const [warrantyPackages, setWarrantyPackages] = useState([
+    { key: 'none', label: 'Không bảo hiểm', fee: 0, refundNote: 'Tự chịu trách nhiệm nếu hư hỏng.' }
+  ])
 
   useEffect(() => {
     getProductById(id)
@@ -46,6 +47,23 @@ function ProductDetail() {
       })
       .catch(err => console.error("Failed to fetch product:", err))
       .finally(() => setLoading(false))
+
+    getPublicPlans().then(response => {
+      const backendPlans = (response.data || []).map(plan => ({
+        key: plan.id, // Dùng ID từ DB làm key
+        label: plan.name,
+        fee: plan.feeAmount,
+        refundNote: plan.description || `Bảo vệ tối đa ${plan.coverPercent}% cọc`
+      }))
+
+      // Gộp tùy chọn "Không bảo hiểm" với dữ liệu từ DB
+      setWarrantyPackages([
+        { key: 'none', label: 'Không bảo hiểm', fee: 0, refundNote: 'Tự chịu trách nhiệm nếu hư hỏng.' },
+        ...backendPlans
+      ])
+    }).catch(err => console.error("Lỗi tải gói bảo hiểm:", err))
+
+
   }, [id])
 
   if (loading) {
@@ -76,7 +94,7 @@ function ProductDetail() {
   const days = calcDays()
   const unitPrice = product.pricePerDay ?? product.price ?? 0
   const rentalPrice = days * unitPrice
-  const warrantyFee = WARRANTY_PACKAGES.find(item => item.key === selectedWarranty)?.fee ?? 0
+  const warrantyFee = warrantyPackages.find(item => item.key === selectedWarranty)?.fee ?? 0
   const totalPrice = rentalPrice + warrantyFee
 
   const validate = () => {
@@ -122,6 +140,42 @@ function ProductDetail() {
     }, 1000)
   }
 
+  const handleToggleReviewLike = async (review) => {
+    try {
+      const updated = review.likedByCurrentUser
+        ? await unlikeProductReview(review.id)
+        : await likeProductReview(review.id)
+      setProduct(current => ({
+        ...current,
+        reviews: (current.reviews || []).map(item => item.id === updated.id ? updated : item),
+      }))
+    } catch (err) {
+      setErrors(current => ({
+        ...current,
+        reviewLike: err?.message || 'Can dang nhap de thich danh gia.',
+      }))
+    }
+  }
+
+  const handleDeleteReview = async (review) => {
+    const ok = window.confirm('Xoa danh gia nay?')
+    if (!ok) return
+
+    try {
+      await deleteProductReview(review.id)
+      setProduct(current => ({
+        ...current,
+        reviews: (current.reviews || []).filter(item => item.id !== review.id),
+        reviewCount: Math.max(Number(current.reviewCount || 0) - 1, 0),
+      }))
+    } catch (err) {
+      setErrors(current => ({
+        ...current,
+        reviewLike: err?.message || 'Khong xoa duoc danh gia nay.',
+      }))
+    }
+  }
+
   return (
     <div className="pd-page">
       <div className="pd-breadcrumb">
@@ -162,10 +216,10 @@ function ProductDetail() {
           <div className="pd-rating-row">
             <div className="pd-stars">
               {[1, 2, 3, 4, 5].map(star => (
-                <span key={star} className={star <= Math.round(product.rating ?? 0) ? 'star filled' : 'star'}>★</span>
+                <span key={star} className={star <= Math.round(product.avgRating ?? 0) ? 'star filled' : 'star'}>★</span>
               ))}
             </div>
-            <span className="pd-rating-num">{product.rating?.toFixed(1)}</span>
+            <span className="pd-rating-num">{product.avgRating?.toFixed(1)}</span>
             <span className="pd-reviews">({product.reviewCount ?? 0} đánh giá)</span>
           </div>
 
@@ -256,7 +310,7 @@ function ProductDetail() {
           <div className="pd-field-group">
             <label className="pd-field-label">🛡️ Gói bảo hiểm (tùy chọn)</label>
             <div className="pd-warranty-grid">
-              {WARRANTY_PACKAGES.map(pkg => (
+              {warrantyPackages.map(pkg => (
                 <button
                   key={pkg.key}
                   type="button"
@@ -280,7 +334,7 @@ function ProductDetail() {
                 {selectedSize && <span className="pd-summary-size">Size đã chọn: {selectedSize}</span>}
                 {warrantyFee > 0 && (
                   <span className="pd-summary-warranty">
-                    🛡️ Bảo hành {WARRANTY_PACKAGES.find(item => item.key === selectedWarranty)?.label}
+                    🛡️ Bảo hành {warrantyPackages.find(item => item.key === selectedWarranty)?.label}
                   </span>
                 )}
               </div>
@@ -326,12 +380,19 @@ function ProductDetail() {
         </div>
       </div>
 
-      <DetailTabs product={product} sizeGuideRows={sizeGuideRows} />
+      {errors.reviewLike && <p className="pd-error">{errors.reviewLike}</p>}
+      <DetailTabs
+        product={product}
+        sizeGuideRows={sizeGuideRows}
+        currentUser={user}
+        onToggleReviewLike={handleToggleReviewLike}
+        onDeleteReview={handleDeleteReview}
+      />
     </div>
   )
 }
 
-function DetailTabs({ product, sizeGuideRows }) {
+function DetailTabs({ product, sizeGuideRows, currentUser, onToggleReviewLike, onDeleteReview }) {
   const [tab, setTab] = useState('desc')
 
   const tabs = [
@@ -421,16 +482,42 @@ function DetailTabs({ product, sizeGuideRows }) {
             {product.reviews?.length ? product.reviews.map((review, index) => (
               <div key={index} className="pd-review-card">
                 <div className="pd-reviewer">
-                  <div className="pd-avatar">{review.name.charAt(0)}</div>
+                  <div className="pd-avatar">{(review.buyerName || review.name || 'K').charAt(0)}</div>
                   <div>
-                    <p className="pd-reviewer-name">{review.name}</p>
-                    <p className="pd-reviewer-date">{review.date}</p>
+                    <p className="pd-reviewer-name">{review.buyerName || review.name || 'Khach hang'}</p>
+                    <p className="pd-reviewer-date">
+                      {review.createdAt ? new Date(review.createdAt).toLocaleDateString('vi-VN') : review.date}
+                    </p>
                   </div>
                   <div className="pd-review-stars">
                     {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
                   </div>
                 </div>
-                <p className="pd-review-text">{review.comment}</p>
+                <p className="pd-review-text">{review.content || review.comment}</p>
+                {review.sellerResponse && (
+                  <div className="pd-review-response">
+                    <strong>Phan hoi tu shop</strong>
+                    <p>{review.sellerResponse}</p>
+                  </div>
+                )}
+                <div className="pd-review-actions">
+                  <button
+                    type="button"
+                    className={`pd-review-like ${review.likedByCurrentUser ? 'active' : ''}`}
+                    onClick={() => onToggleReviewLike?.(review)}
+                  >
+                    {review.likedByCurrentUser ? 'Unlike' : 'Like'} ({review.likeCount ?? 0})
+                  </button>
+                  {currentUser?.id && Number(currentUser.id) === Number(review.buyerId) && (
+                    <button
+                      type="button"
+                      className="pd-review-delete"
+                      onClick={() => onDeleteReview?.(review)}
+                    >
+                      Xoa danh gia
+                    </button>
+                  )}
+                </div>
               </div>
             )) : <p className="pd-tab-empty">Chưa có đánh giá nào.</p>}
           </div>

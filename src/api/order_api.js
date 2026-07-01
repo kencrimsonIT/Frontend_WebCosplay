@@ -1,5 +1,7 @@
 import axiosInstance from "./axios_instance";
 
+const unwrap = (response) => response.data?.data ?? response.data;
+
 export const createOrder = async (orderData) => {
     try {
         const response = await axiosInstance.post("/api/orders", orderData);

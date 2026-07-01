@@ -19,6 +19,7 @@ function saveFavoriteIds(ids) {
 }
 
 function ProductCard({ product,isLessor=false }) {
+  console.log("Dữ liệu Product đang nhận:", product);
   const [isHovering, setIsHovering] = useState(false)
   const [isFavorite, setIsFavorite] = useState(() =>
     readFavoriteIds().includes(Number(product.id))
@@ -38,7 +39,7 @@ function ProductCard({ product,isLessor=false }) {
     }
   }, [product.id])
 
-  const formatPrice = (price) => price.toLocaleString('vi-VN')
+  const formatPrice = (priceVal) => Number(priceVal ?? 0).toLocaleString('vi-VN')
 
   const getCategoryColor = (category) => {
     const colors = {
@@ -89,55 +90,60 @@ function ProductCard({ product,isLessor=false }) {
     >
       <div className="product-image-wrap">
         <img
-          src={product.image}
-          alt={product.name}
-          className="product-img"
-          loading="lazy"
-          onError={(e) => {
-            e.target.src = `https://picsum.photos/seed/${product.id}/600/750`
-          }}
+            // Ưu tiên dùng imageUrl, nếu không có thì dùng image
+            src={product.imageUrl || product.image}
+            alt={product.name}
+            className="product-img"
+            loading="lazy"
+            style={{backgroundColor: '#2d1b4e'}} // Thêm màu nền tối tông xuyệt tông
+            onError={(e) => {
+              // Nếu ảnh bị lỗi (404), nó sẽ tự lấy ảnh từ Picsum
+              e.target.onerror = null; // Tránh loop nếu ảnh mặc định cũng lỗi
+              e.target.src = `https://picsum.photos/seed/${product.id}/600/750`;
+            }}
         />
 
-        <div className="product-image-overlay" />
+        <div className="product-image-overlay"/>
 
         <span
-          className="product-category-tag"
-          style={{ backgroundColor: getCategoryColor(product.category) }}
+            className="product-category-tag"
+            style={{backgroundColor: getCategoryColor(product.category)}}
         >
           {product.category}
         </span>
 
         <div className={`product-quick-actions ${isHovering ? 'active' : ''}`}>
           <button
-            type="button"
-            className={`action-btn action-heart ${isFavorite ? 'active' : ''}`}
-            title={isFavorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
-            onClick={handleToggleFavorite}
+              type="button"
+              className={`action-btn action-heart ${isFavorite ? 'active' : ''}`}
+              title={isFavorite ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}
+              onClick={handleToggleFavorite}
           >
             <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill={isFavorite ? 'currentColor' : 'none'}
-              stroke="currentColor"
-              strokeWidth="2"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill={isFavorite ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="2"
             >
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              <path
+                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
             </svg>
           </button>
 
           <button
-            type="button"
-            className="action-btn action-share"
-            title="Chia sẻ"
-            onClick={handleShare}
+              type="button"
+              className="action-btn action-share"
+              title="Chia sẻ"
+              onClick={handleShare}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="18" cy="5" r="3" />
-              <circle cx="6" cy="12" r="3" />
-              <circle cx="18" cy="19" r="3" />
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
             </svg>
           </button>
         </div>
@@ -150,7 +156,7 @@ function ProductCard({ product,isLessor=false }) {
         <div className="product-rating">
           <div className="stars">
             {'★★★★★'.split('').map((star, i) => (
-              <span key={i} className="star">{star}</span>
+                <span key={i} className="star">{star}</span>
             ))}
           </div>
           <span className="review-count">({product.reviewCount || 128})</span>
@@ -164,7 +170,7 @@ function ProductCard({ product,isLessor=false }) {
           <div className="product-price-block">
             <span className="product-price-label">Giá thuê/ngày</span>
             <span className="product-price">
-              {formatPrice(product.price)}
+              {formatPrice(product.pricePerDay ?? product.price)}
               <span className="product-price-unit">đ</span>
             </span>
           </div>

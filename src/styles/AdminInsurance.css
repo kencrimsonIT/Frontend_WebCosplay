@@ -1,0 +1,117 @@
+/* src/styles/AdminInsurance.css */
+.ins-page { padding: 2rem; max-width: 1000px; margin: 0 auto; }
+
+.ins-kicker   { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--color-text-tertiary); }
+.ins-title    { font-size: 1.6rem; font-weight: 600; margin: 4px 0; }
+.ins-subtitle { font-size: 14px; color: var(--color-text-secondary); }
+.ins-header   { display: flex; justify-content: space-between; align-items: flex-start;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem; }
+.ins-btn-new  { padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
+    background: var(--color-border-primary); color: var(--color-text-primary); font-size: 14px; }
+
+/* Stats */
+.ins-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 1.5rem; }
+.ins-stat-card  { background: var(--color-background-secondary); border-radius: 10px;
+    padding: 1rem; display: flex; flex-direction: column; gap: 4px; }
+.ins-stat-label { font-size: 12px; color: var(--color-text-secondary); }
+.ins-stat-value { font-size: 1.6rem; font-weight: 700; }
+.ins-stat-card.pending    .ins-stat-value { color: #f59e0b; }
+.ins-stat-card.verifying  .ins-stat-value { color: #06b6d4; }
+.ins-stat-card.approved   .ins-stat-value { color: #10b981; }
+.ins-stat-card.payout     .ins-stat-value { color: #a78bfa; font-size: 1.2rem; }
+
+/* View toggle */
+.ins-view-toggle { display: flex; gap: 8px; margin-bottom: 1.25rem; }
+.ins-view-btn    { padding: 7px 18px; border-radius: 8px; border: 1px solid var(--color-border-tertiary);
+    background: transparent; color: var(--color-text-secondary); cursor: pointer; font-size: 13px; }
+.ins-view-btn.active { background: var(--color-border-primary); color: var(--color-text-primary); }
+
+/* Plans grid */
+.ins-plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.ins-plan-card  { background: var(--color-background-primary); border: 0.5 px solid var(--color-border-tertiary);
+    border-radius: 12px; padding: 1.25rem; }
+.ins-plan-card.inactive { opacity: 0.55; }
+.ins-plan-head  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.ins-plan-name  { font-weight: 600; font-size: 15px; margin: 0; }
+.ins-plan-status.on  { font-size: 11px; color: #10b981; background: #10b98122; padding: 2px 8px; border-radius: 10px; }
+.ins-plan-status.off { font-size: 11px; color: #6b7280; background: #6b728022; padding: 2px 8px; border-radius: 10px; }
+.ins-plan-desc  { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 12px; line-height: 1.4; }
+.ins-plan-metrics { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.ins-plan-metrics div { background: var(--color-background-secondary); border-radius: 6px; padding: 6px 10px;
+    display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 70px; }
+.ins-plan-metrics span   { font-size: 10px; color: var(--color-text-tertiary); }
+.ins-plan-metrics strong { font-size: 13px; color: var(--color-text-primary); }
+.ins-btn-toggle          { width: 100%; padding: 7px; border-radius: 7px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; font-size: 13px; background: transparent; color: var(--color-text-secondary); }
+.ins-btn-toggle.deactivate { border-color: #ef444455; color: #ef4444; }
+.ins-btn-toggle.activate   { border-color: #10b98155; color: #10b981; }
+
+/* Claims */
+.ins-tabs   { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.ins-tab    { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--color-border-tertiary);
+    font-size: 13px; cursor: pointer; background: transparent; color: var(--color-text-secondary); }
+.ins-tab.active { background: var(--color-border-primary); color: var(--color-text-primary); }
+.ins-count  { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 12px; }
+.ins-loading, .ins-empty { text-align: center; padding: 3rem; color: var(--color-text-secondary); }
+.ins-empty span { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+.ins-claims-list { display: flex; flex-direction: column; gap: 12px; }
+
+.ins-claim-card   { background: var(--color-background-primary); border: 0.5 px solid var(--color-border-tertiary);
+    border-radius: 12px; padding: 1rem 1.25rem; }
+.ins-claim-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.ins-claim-code   { font-weight: 700; font-size: 14px; margin-right: 8px; }
+.ins-claim-order  { font-size: 12px; color: var(--color-text-secondary); }
+.ins-claim-body   { font-size: 13px; color: var(--color-text-primary); display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ins-claim-body p { margin: 0; }
+.ins-resolution-note { font-style: italic; color: var(--color-text-secondary); }
+.ins-claim-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ins-claim-date   { font-size: 12px; color: var(--color-text-tertiary); }
+.ins-claim-actions { display: flex; gap: 8px; }
+.ins-btn-sm       { padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: 1px solid transparent; }
+.ins-btn-sm.verify  { background: #06b6d422; color: #06b6d4; border-color: #06b6d444; }
+.ins-btn-sm.resolve { background: #a78bfa22; color: #a78bfa; border-color: #a78bfa44; }
+
+/* Claim status badges */
+.cs-badge         { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.cs-pending       { background: #f59e0b22; color: #f59e0b; }
+.cs-verifying     { background: #06b6d422; color: #06b6d4; }
+.cs-approved      { background: #10b98122; color: #10b981; }
+.cs-rejected      { background: #ef444422; color: #ef4444; }
+
+/* Pagination */
+.ins-pagination { display: flex; gap: 12px; align-items: center; justify-content: center;
+    margin-top: 1.5rem; font-size: 13px; }
+.ins-pagination button { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; background: transparent; color: var(--color-text-primary); }
+.ins-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Modal */
+.ins-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000;
+    display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.ins-modal         { background: var(--color-background-primary); border-radius: 14px;
+    padding: 1.5rem; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+.ins-modal-title   { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; }
+.ins-modal-info    { background: var(--color-background-secondary); border-radius: 8px;
+    padding: 12px; margin-bottom: 1rem; font-size: 13px; }
+.ins-modal-info p  { margin: 3px 0; }
+.ins-modal-desc    { margin-top: 6px !important; color: var(--color-text-secondary); }
+.ins-action-tabs   { display: flex; gap: 8px; margin-bottom: 12px; }
+.ins-action-tab    { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; font-size: 13px; background: transparent; color: var(--color-text-primary); }
+.ins-action-tab.active-approved { background: #10b98122; border-color: #10b981; color: #10b981; }
+.ins-action-tab.active-rejected { background: #ef444422; border-color: #ef4444; color: #ef4444; }
+.ins-field         { margin-bottom: 12px; }
+.ins-field label   { display: block; font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+.ins-input, .ins-textarea { width: 100%; border-radius: 8px; border: 1px solid var(--color-border-tertiary);
+    background: var(--color-background-secondary); color: var(--color-text-primary);
+    padding: 8px 10px; font-size: 13px; box-sizing: border-box; }
+.ins-textarea      { resize: vertical; }
+.ins-hint          { font-size: 11px; color: var(--color-text-tertiary); }
+.ins-error         { font-size: 12px; color: #ef4444; margin-top: 6px; }
+.ins-modal-footer  { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1rem; }
+.ins-btn-cancel    { padding: 8px 18px; border-radius: 7px; border: 1px solid var(--color-border-tertiary);
+    cursor: pointer; background: transparent; color: var(--color-text-secondary); font-size: 13px; }
+.ins-btn-submit    { padding: 8px 18px; border-radius: 7px; border: none; background: var(--color-border-primary);
+    color: var(--color-text-primary); font-size: 13px; cursor: pointer; }
+.ins-btn-submit.danger { background: #ef4444; color: #fff; }

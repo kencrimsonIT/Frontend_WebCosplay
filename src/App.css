@@ -11,6 +11,20 @@
   margin: 0 auto;
   padding: 48px 24px;
 }
+:root {
+  /* Text Colors */
+  --color-text-primary: #111827;     /* Chữ chính (đen/đậm) */
+  --color-text-secondary: #4b5563;   /* Chữ phụ (xám đậm) */
+  --color-text-tertiary: #9ca3af;    /* Chữ mờ/ghi chú (xám nhạt) */
+
+  /* Background Colors */
+  --color-background-primary: #ffffff;   /* Nền chính (trắng) */
+  --color-background-secondary: #f3f4f6; /* Nền phụ (xám nhạt) */
+
+  /* Border Colors */
+  --color-border-primary: #e5e7eb;   /* Viền chính */
+  --color-border-tertiary: #d1d5db;  /* Viền phụ/đậm hơn chút */
+}
 
 @media (max-width: 768px) {
   .main-content {

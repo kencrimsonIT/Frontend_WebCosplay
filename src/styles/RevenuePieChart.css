@@ -1,0 +1,65 @@
+.revenue-pie-wrap {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 1.5rem;
+    align-items: start;
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 1px solid #eee;
+}
+
+@media (max-width: 900px) {
+    .revenue-pie-wrap {
+        grid-template-columns: 1fr;
+    }
+}
+
+.revenue-pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.revenue-legend-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto auto;
+    gap: 0.5rem;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.legend-pct {
+    color: #7c3aed;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.revenue-chart-loading,
+.revenue-chart-empty {
+    padding: 3rem;
+    text-align: center;
+    color: #666;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px dashed #ddd;
+}
+
+.revenue-month-picker {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.revenue-month-picker select {
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}

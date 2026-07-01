@@ -11,6 +11,62 @@
     padding: 32px 28px 80px;
 }
 
+.pd-review-response {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(168, 85, 247, 0.18);
+    background: rgba(168, 85, 247, 0.08);
+}
+
+.pd-review-response strong {
+    display: block;
+    color: var(--color-purple-pale);
+    margin-bottom: 6px;
+}
+
+.pd-review-response p {
+    margin: 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.pd-review-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.pd-review-like {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.42);
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.pd-review-like:hover,
+.pd-review-like.active {
+    color: var(--color-purple-pale);
+    border-color: var(--color-border-bright);
+    background: rgba(168, 85, 247, 0.12);
+}
+
+.pd-review-delete {
+    border: 1px solid rgba(239, 68, 68, 0.32);
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    color: #fca5a5;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.pd-review-delete:hover {
+    border-color: rgba(239, 68, 68, 0.56);
+    background: rgba(239, 68, 68, 0.14);
+}
+
 /* ── BREADCRUMB ── */
 .pd-breadcrumb {
     display: flex;
