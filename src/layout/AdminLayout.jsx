@@ -30,6 +30,15 @@ function AdminLayout() {
             <span>📁</span>
             Quản lý danh mục
           </NavLink>
+          <NavLink to="/admin/orders" className={({ isActive }) => isActive ? 'admin-nav-link active' : 'admin-nav-link'}>
+            <span>📦</span>
+            Quản lý đơn hàng
+          </NavLink>
+
+          <NavLink to="/admin/revenue" className={({ isActive }) => isActive ? 'admin-nav-link active' : 'admin-nav-link'}>
+            <span>📈</span>
+            Doanh thu
+          </NavLink>
 
           <NavLink to="/admin/content" className={({ isActive }) => isActive ? 'admin-nav-link active' : 'admin-nav-link'}>
             <span>🛡️</span>

@@ -37,3 +37,25 @@ export const getMyOrderDetail = async (id) => {
         throw error.response?.data || error.message;
     }
 };
+
+export const cancelOrder = async (id, reason) => {
+    try {
+        const response = await axiosInstance.post(`/api/orders/${id}/cancel`, null, {
+            params: { reason }
+        });
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+export const checkPromotion = async (code, cartTotal) => {
+    try {
+        const response = await axiosInstance.get('/api/promotions/check', {
+            params: { code, cartTotal }
+        });
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};

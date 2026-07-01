@@ -365,6 +365,10 @@
   color: var(--text-primary);
   font-size: 15px;
 }
+.status-từ-chối {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+}
 
 @media (max-width: 1200px) {
   .insurance-stats-grid,
