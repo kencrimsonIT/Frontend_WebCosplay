@@ -19,36 +19,11 @@ export const getOrder = async (id) => {
         throw error.response?.data || error.message;
     }
 };
-export const getMyOrders = async () => {
+export const checkPromotion = async (code, cartTotal) => {
     try {
-        const response = await axiosInstance.get("/api/orders/my");
-        return response.data;
-    } catch (error) {
-        throw error.response?.data || error.message;
-    }
-};
-
-export const cancelOrder = async (id, reason = "") => {
-    try {
-        const response = await axiosInstance.post(`/api/orders/${id}/cancel`, { reason });
-        return response.data;
-    } catch (error) {
-        throw error.response?.data || error.message;
-    }
-};
-
-export const getMyOrderHistory = async (params = {}) => {
-    try {
-        const response = await axiosInstance.get("/api/orders/my-history", { params });
-        return unwrap(response);
-    } catch (error) {
-        throw error.response?.data || error.message;
-    }
-};
-
-export const getMyOrderDetail = async (id) => {
-    try {
-        const response = await axiosInstance.get(`/api/orders/my-history/${id}`);
+        const response = await axiosInstance.get('/api/promotions/check', {
+            params: { code, cartTotal }
+        });
         return unwrap(response);
     } catch (error) {
         throw error.response?.data || error.message;
