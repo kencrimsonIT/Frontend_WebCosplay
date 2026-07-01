@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import '../styles/Checkout.css'
 import { createOrder, checkPromotion } from '../api/order_api'
 import { createOnlinePayment } from '../api/payment_api'
+import { applyVoucher } from '../api/voucher_api'
 
 const WARRANTY_LABEL = { none: 'Không BH', basic: 'Cơ bản', standard: 'Tiêu chuẩn', premium: 'Cao cấp' }
 
@@ -104,20 +105,35 @@ function Checkout() {
   const [appliedPromo, setAppliedPromo] = useState(null)
   const [promoError, setPromoError] = useState('')
   const [checkingPromo, setCheckingPromo] = useState(false)
+  const [voucherCode, setVoucherCode] = useState('')
+  const [voucher, setVoucher] = useState(null)
+  const [voucherMessage, setVoucherMessage] = useState('')
+  const [voucherLoading, setVoucherLoading] = useState(false)
 
   const rentalTotal   = cart.reduce((s, i) => s + (i.rentalPrice  ?? 0) * (i.quantity ?? 1), 0)
   const warrantyTotal = cart.reduce((s, i) => s + (i.warrantyFee  ?? 0) * (i.quantity ?? 1), 0)
   const depositTotal  = cart.reduce((s, i) => s + (i.deposit      ?? 0) * (i.quantity ?? 1), 0)
   const subTotal = rentalTotal + warrantyTotal + depositTotal
+  const orderItems = cart.map(item => ({
+    productId: item.productId,
+    productName: item.name,
+    categoryName: item.category,
+    size: item.size,
+    days: item.days,
+    quantity: item.quantity || 1,
+    lineTotal: (item.rentalPrice ?? 0) * (item.quantity || 1),
+  }))
 
-  let discountTotal = 0
+  let promoDiscount = 0
   if (appliedPromo) {
     if (appliedPromo.type === 'PERCENT') {
-      discountTotal = (rentalTotal * appliedPromo.value) / 100
+      promoDiscount = (rentalTotal * appliedPromo.value) / 100
     } else if (appliedPromo.type === 'AMOUNT') {
-      discountTotal = appliedPromo.value
+      promoDiscount = appliedPromo.value
     }
   }
+  const voucherDiscount = voucher?.discountAmount ?? 0
+  const discountTotal = voucher ? voucherDiscount : promoDiscount
   const total = Math.max(0, subTotal - discountTotal)
 
   const handleInputChange = (e) => {
@@ -132,6 +148,9 @@ function Checkout() {
     try {
       const res = await checkPromotion(promoCode, subTotal)
       setAppliedPromo(res)
+      setVoucher(null)
+      setVoucherCode('')
+      setVoucherMessage('')
     } catch (err) {
       setPromoError(err?.message || 'Không thể áp dụng mã khuyến mãi')
       setAppliedPromo(null)
@@ -144,6 +163,38 @@ function Checkout() {
     setAppliedPromo(null)
     setPromoCode('')
     setPromoError('')
+  }
+
+  const handleApplyVoucher = async () => {
+    if (!voucherCode.trim()) return
+    setVoucherLoading(true)
+    setVoucherMessage('')
+    setVoucher(null)
+    try {
+      const result = await applyVoucher({
+        code: voucherCode,
+        rentalTotal,
+        warrantyTotal,
+        depositTotal,
+        items: orderItems,
+      })
+      setVoucher(result)
+      setVoucherCode(result.code)
+      setAppliedPromo(null)
+      setPromoCode('')
+      setPromoError('')
+      setVoucherMessage(`${result.title}: giam ${(result.discountAmount ?? 0).toLocaleString('vi-VN')}d`)
+    } catch (err) {
+      setVoucherMessage(err?.message || 'Voucher khong hop le.')
+    } finally {
+      setVoucherLoading(false)
+    }
+  }
+
+  const handleRemoveVoucher = () => {
+    setVoucher(null)
+    setVoucherCode('')
+    setVoucherMessage('')
   }
 
   const handleSubmit = async (e) => {
@@ -165,18 +216,11 @@ function Checkout() {
         depositTotal: depositTotal,
         discountTotal: discountTotal,
         grandTotal: total,
-        promotionCode: appliedPromo?.code || null,
+        voucherCode: voucher?.code || null,
+        promotionCode: voucher ? null : appliedPromo?.code || null,
         rentFrom: cart[0]?.startDate,
         rentTo: cart[0]?.endDate,
-        items: cart.map(item => ({
-          productId: item.productId,
-          productName: item.name,
-          categoryName: item.category,
-          size: item.size,
-          days: item.days,
-          quantity: item.quantity || 1,
-          lineTotal: item.rentalPrice
-        }))
+        items: orderItems
       }
 
       const response = await createOrder(orderRequest)
@@ -361,6 +405,38 @@ function Checkout() {
                   <span>{depositTotal.toLocaleString('vi-VN')}đ</span>
                 </div>
 
+                <div className="checkout-voucher-box">
+                  {!voucher ? (
+                      <>
+                        <label className="checkout-voucher-label">Ma voucher</label>
+                        <div className="checkout-voucher-row">
+                          <input
+                              type="text"
+                              value={voucherCode}
+                              onChange={event => {
+                                setVoucherCode(event.target.value.toUpperCase())
+                                setVoucherMessage('')
+                              }}
+                              placeholder="COSPLAY10"
+                              disabled={voucherLoading || loading}
+                          />
+                          <button type="button" onClick={handleApplyVoucher} disabled={voucherLoading || loading || !voucherCode.trim()}>
+                            {voucherLoading ? 'Dang ap dung...' : 'Ap dung'}
+                          </button>
+                        </div>
+                      </>
+                  ) : (
+                      <div className="applied-promo">
+                        <div>
+                          <span className="promo-badge">Voucher {voucher.code}</span>
+                          <span className="promo-desc">{voucher.title}</span>
+                        </div>
+                        <button type="button" onClick={handleRemoveVoucher} disabled={loading}>x</button>
+                      </div>
+                  )}
+                  {voucherMessage && <p className="checkout-voucher-message">{voucherMessage}</p>}
+                </div>
+
                 <div className="checkout-promo-section">
                   {!appliedPromo ? (
                       <div className="promo-input-group">
@@ -369,9 +445,9 @@ function Checkout() {
                             placeholder="Mã giảm giá"
                             value={promoCode}
                             onChange={e => setPromoCode(e.target.value.toUpperCase())}
-                            disabled={checkingPromo || loading}
+                            disabled={checkingPromo || loading || !!voucher}
                         />
-                        <button type="button" onClick={handleApplyPromo} disabled={!promoCode.trim() || checkingPromo || loading}>
+                        <button type="button" onClick={handleApplyPromo} disabled={!promoCode.trim() || checkingPromo || loading || !!voucher}>
                           {checkingPromo ? 'Đang ktra...' : 'Áp dụng'}
                         </button>
                       </div>
