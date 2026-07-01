@@ -1,65 +1,59 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  createSellerVoucher,
+  getSellerVouchers,
+  toggleSellerVoucher,
+} from '../api/voucher_api'
 import '../styles/Promotions.css'
 
-const promotionSummary = [
-  { label: 'Mã đang hoạt động', value: '12', note: '4 mã áp dụng toàn bộ sản phẩm' },
-  { label: 'Voucher đã dùng', value: '328', note: 'Tăng 14% so với tuần trước' },
-  { label: 'Doanh thu giảm giá', value: '86.4M', note: 'Đến từ chiến dịch tháng 4' },
-  { label: 'Sắp hết hạn', value: '3', note: 'Cần gia hạn trong 72 giờ tới' },
-]
+const initialForm = {
+  title: '',
+  code: '',
+  discountType: 'PERCENTAGE',
+  discountValue: 10,
+  maxDiscountAmount: 100000,
+  minimumOrderAmount: 300000,
+  usageLimit: 100,
+  perUserLimit: 1,
+  startsAt: '',
+  endsAt: '',
+  audience: 'ALL',
+  productScope: 'SELLER_PRODUCTS',
+  stackable: false,
+  description: '',
+}
 
-const voucherTemplates = [
-  { label: 'Giảm 10%', desc: 'Dùng cho khách mới, đơn tối thiểu 499K', code: 'NEW10' },
-  { label: 'Freeship', desc: 'Áp dụng đơn nội thành từ 799K', code: 'SHIP0' },
-  { label: 'Combo sự kiện', desc: 'Giảm cho đơn thuê từ 2 trang phục', code: 'EVENT15' },
-]
+function money(value) {
+  return `${Number(value || 0).toLocaleString('vi-VN')}d`
+}
 
-const activePromotions = [
-  {
-    code: 'COSPLAY10',
-    title: 'Giảm 10% cho khách mới',
-    type: 'Phần trăm',
-    value: '10%',
-    validity: '01/04/2026 - 30/04/2026',
-    usage: '126 / 300 lượt',
-    condition: 'Đơn từ 500.000đ · Khách hàng mới',
-    status: 'Đang chạy',
-  },
-  {
-    code: 'GROUP20',
-    title: 'Ưu đãi thuê nhóm sự kiện',
-    type: 'Phần trăm',
-    value: '20%',
-    validity: '05/04/2026 - 20/04/2026',
-    usage: '42 / 80 lượt',
-    condition: 'Từ 2 sản phẩm · Đơn từ 1.500.000đ',
-    status: 'Hiệu quả cao',
-  },
-  {
-    code: 'NIGHT80K',
-    title: 'Giảm trực tiếp cho đơn tối',
-    type: 'Số tiền',
-    value: '80.000đ',
-    validity: '06/04/2026 - 15/04/2026',
-    usage: '19 / 60 lượt',
-    condition: 'Đặt sau 18:00 · Nhận tại cửa hàng',
-    status: 'Sắp hết hạn',
-  },
-]
+function formatDate(value) {
+  if (!value) return '-'
+  return new Date(value).toLocaleDateString('vi-VN')
+}
 
-const applicationRules = [
-  { label: 'Đơn tối thiểu', value: '500.000đ', hint: 'Ngăn áp dụng cho đơn nhỏ' },
-  { label: 'Giới hạn lượt dùng', value: '300', hint: 'Có thể đặt theo mỗi khách hoặc toàn hệ thống' },
-  { label: 'Nhóm khách hàng', value: 'Khách mới / Khách VIP', hint: 'Chọn đúng phân khúc nhận ưu đãi' },
-  { label: 'Khung giờ áp dụng', value: '09:00 - 22:00', hint: 'Dùng cho flash sale hoặc giờ thấp điểm' },
-]
+function toDateTime(value, endOfDay = false) {
+  if (!value) return null
+  return `${value}T${endOfDay ? '23:59:00' : '00:00:00'}`
+}
 
-function PromotionCard({ item }) {
-  const statusClass =
-    item.status === 'Đang chạy'
-      ? 'running'
-      : item.status === 'Hiệu quả cao'
-        ? 'strong'
-        : 'expiring'
+function discountText(voucher) {
+  if (voucher.discountType === 'PERCENTAGE') return `${voucher.discountValue}%`
+  if (voucher.discountType === 'FIXED_AMOUNT') return money(voucher.discountValue)
+  return 'Free ship'
+}
+
+function statusLabel(status) {
+  return {
+    ACTIVE: 'Dang chay',
+    PAUSED: 'Tam dung',
+    DRAFT: 'Luu nhap',
+    EXPIRED: 'Het han',
+  }[status] || status
+}
+
+function PromotionCard({ item, onToggle }) {
+  const statusClass = item.status === 'ACTIVE' ? 'running' : item.status === 'PAUSED' ? 'expiring' : 'strong'
 
   return (
     <article className="promotion-card">
@@ -68,76 +62,142 @@ function PromotionCard({ item }) {
           <div className="promotion-code">{item.code}</div>
           <h3>{item.title}</h3>
         </div>
-        <span className={`promotion-status ${statusClass}`}>{item.status}</span>
+        <span className={`promotion-status ${statusClass}`}>{statusLabel(item.status)}</span>
       </div>
 
       <div className="promotion-meta-grid">
         <div>
-          <span className="meta-label">Loại ưu đãi</span>
-          <strong>{item.type}</strong>
+          <span className="meta-label">Loai uu dai</span>
+          <strong>{item.discountType}</strong>
         </div>
         <div>
-          <span className="meta-label">Giá trị</span>
-          <strong>{item.value}</strong>
+          <span className="meta-label">Gia tri</span>
+          <strong>{discountText(item)}</strong>
         </div>
         <div>
-          <span className="meta-label">Hiệu lực</span>
-          <strong>{item.validity}</strong>
+          <span className="meta-label">Hieu luc</span>
+          <strong>{formatDate(item.startsAt)} - {formatDate(item.endsAt)}</strong>
         </div>
         <div>
-          <span className="meta-label">Đã sử dụng</span>
-          <strong>{item.usage}</strong>
+          <span className="meta-label">Da su dung</span>
+          <strong>{item.usedCount || 0} / {item.usageLimit || 'khong gioi han'}</strong>
         </div>
       </div>
 
       <div className="promotion-condition-box">
-        <span className="meta-label">Điều kiện áp dụng</span>
-        <p>{item.condition}</p>
+        <span className="meta-label">Dieu kien ap dung</span>
+        <p>
+          Don tu {money(item.minimumOrderAmount)}
+          {item.maxDiscountAmount ? ` - giam toi da ${money(item.maxDiscountAmount)}` : ''}
+          {item.stackable ? ' - cho phep ap chung' : ' - khong ap chung'}
+        </p>
       </div>
 
       <div className="promotion-actions">
-        <button className="promotion-btn subtle">Tạm dừng</button>
-        <button className="promotion-btn secondary">Nhân bản</button>
-        <button className="promotion-btn primary">Chỉnh sửa</button>
+        <button className="promotion-btn subtle" type="button" onClick={() => onToggle(item.id)}>
+          {item.status === 'PAUSED' ? 'Kich hoat' : 'Tam dung'}
+        </button>
       </div>
     </article>
   )
 }
 
 function Promotions() {
+  const [form, setForm] = useState(initialForm)
+  const [vouchers, setVouchers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const loadVouchers = async () => {
+    setLoading(true)
+    try {
+      setVouchers(await getSellerVouchers())
+    } catch (err) {
+      setMessage(err?.message || 'Khong tai duoc voucher.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadVouchers()
+  }, [])
+
+  const summary = useMemo(() => {
+    const active = vouchers.filter(item => item.status === 'ACTIVE').length
+    const used = vouchers.reduce((sum, item) => sum + Number(item.usedCount || 0), 0)
+    const expiring = vouchers.filter(item => {
+      if (!item.endsAt) return false
+      const diff = new Date(item.endsAt).getTime() - Date.now()
+      return diff > 0 && diff <= 3 * 24 * 60 * 60 * 1000
+    }).length
+    return { active, used, expiring }
+  }, [vouchers])
+
+  const updateField = (field, value) => {
+    setForm(current => ({ ...current, [field]: value }))
+  }
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setMessage('')
+    try {
+      await createSellerVoucher({
+        ...form,
+        code: form.code.toUpperCase(),
+        discountValue: Number(form.discountValue || 0),
+        maxDiscountAmount: form.maxDiscountAmount ? Number(form.maxDiscountAmount) : null,
+        minimumOrderAmount: Number(form.minimumOrderAmount || 0),
+        usageLimit: form.usageLimit ? Number(form.usageLimit) : null,
+        perUserLimit: Number(form.perUserLimit || 1),
+        startsAt: toDateTime(form.startsAt),
+        endsAt: toDateTime(form.endsAt, true),
+      })
+      setForm(initialForm)
+      setMessage('Da tao voucher.')
+      await loadVouchers()
+    } catch (err) {
+      setMessage(err?.message || 'Khong tao duoc voucher.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleVoucher = async (id) => {
+    setMessage('')
+    try {
+      await toggleSellerVoucher(id)
+      await loadVouchers()
+    } catch (err) {
+      setMessage(err?.message || 'Khong doi duoc trang thai voucher.')
+    }
+  }
+
   return (
     <div className="promotions-page">
       <section className="promotions-hero">
         <div>
-          <span className="page-kicker">Quản lý khuyến mãi</span>
+          <span className="page-kicker">Quan ly khuyen mai</span>
           <h1 className="page-title">Promotions / Voucher</h1>
-          <p className="page-subtitle">Tạo mã voucher, đặt điều kiện áp dụng và theo dõi hiệu quả các chương trình khuyến mãi theo thời gian thực.</p>
+          <p className="page-subtitle">Tao ma voucher, dat dieu kien ap dung va theo doi hieu qua theo du lieu backend.</p>
         </div>
 
         <div className="promotions-hero-stats">
           <div className="hero-stat-card">
-            <span className="hero-stat-value">12</span>
-            <span className="hero-stat-label">Mã đang chạy</span>
+            <span className="hero-stat-value">{summary.active}</span>
+            <span className="hero-stat-label">Ma dang chay</span>
           </div>
           <div className="hero-stat-card">
-            <span className="hero-stat-value">328</span>
-            <span className="hero-stat-label">Lượt sử dụng</span>
+            <span className="hero-stat-value">{summary.used}</span>
+            <span className="hero-stat-label">Luot su dung</span>
           </div>
           <div className="hero-stat-card">
-            <span className="hero-stat-value">3</span>
-            <span className="hero-stat-label">Sắp hết hạn</span>
+            <span className="hero-stat-value">{summary.expiring}</span>
+            <span className="hero-stat-label">Sap het han</span>
           </div>
         </div>
-      </section>
-
-      <section className="promotions-summary-grid">
-        {promotionSummary.map((item) => (
-          <article className="summary-card" key={item.label}>
-            <span className="summary-label">{item.label}</span>
-            <span className="summary-value">{item.value}</span>
-            <span className="summary-trend">{item.note}</span>
-          </article>
-        ))}
       </section>
 
       <section className="promotions-grid">
@@ -145,95 +205,104 @@ function Promotions() {
           <article className="promotions-panel promo-form-panel">
             <div className="card-head">
               <div>
-                <h2 className="card-title">Tạo mã khuyến mãi</h2>
-                <p className="card-desc">Thiết lập voucher mới với mức giảm và điều kiện áp dụng cụ thể</p>
+                <h2 className="card-title">Tao ma khuyen mai</h2>
+                <p className="card-desc">Seller tao voucher cho san pham cua shop.</p>
               </div>
             </div>
 
-            <form className="promotion-form">
+            <form className="promotion-form" onSubmit={submit}>
               <div className="form-grid">
                 <label className="field">
-                  <span>Tên chương trình</span>
-                  <input type="text" placeholder="Ví dụ: Giảm 10% khách mới" />
+                  <span>Ten chuong trinh</span>
+                  <input value={form.title} onChange={event => updateField('title', event.target.value)} required />
                 </label>
                 <label className="field">
-                  <span>Mã voucher</span>
-                  <input type="text" placeholder="COSPLAY10" />
+                  <span>Ma voucher</span>
+                  <input value={form.code} onChange={event => updateField('code', event.target.value.toUpperCase())} required />
                 </label>
                 <label className="field">
-                  <span>Loại khuyến mãi</span>
-                  <select defaultValue="percent">
-                    <option value="percent">Giảm theo phần trăm</option>
-                    <option value="amount">Giảm theo số tiền</option>
-                    <option value="shipping">Miễn phí giao hàng</option>
+                  <span>Loai khuyen mai</span>
+                  <select value={form.discountType} onChange={event => updateField('discountType', event.target.value)}>
+                    <option value="PERCENTAGE">Giam theo phan tram</option>
+                    <option value="FIXED_AMOUNT">Giam theo so tien</option>
+                    <option value="FREE_SHIPPING">Mien phi giao hang</option>
                   </select>
                 </label>
                 <label className="field">
-                  <span>Giá trị giảm</span>
-                  <input type="text" placeholder="10% hoặc 100000" />
+                  <span>Gia tri giam</span>
+                  <input type="number" value={form.discountValue} onChange={event => updateField('discountValue', event.target.value)} />
                 </label>
                 <label className="field">
-                  <span>Ngày bắt đầu</span>
-                  <input type="date" />
+                  <span>Giam toi da</span>
+                  <input type="number" value={form.maxDiscountAmount || ''} onChange={event => updateField('maxDiscountAmount', event.target.value)} />
                 </label>
                 <label className="field">
-                  <span>Ngày kết thúc</span>
-                  <input type="date" />
+                  <span>Don toi thieu</span>
+                  <input type="number" value={form.minimumOrderAmount} onChange={event => updateField('minimumOrderAmount', event.target.value)} />
                 </label>
                 <label className="field">
-                  <span>Đơn tối thiểu</span>
-                  <input type="text" placeholder="500000" />
+                  <span>Ngay bat dau</span>
+                  <input type="date" value={form.startsAt} onChange={event => updateField('startsAt', event.target.value)} required />
                 </label>
                 <label className="field">
-                  <span>Giới hạn lượt dùng</span>
-                  <input type="number" placeholder="300" />
+                  <span>Ngay ket thuc</span>
+                  <input type="date" value={form.endsAt} onChange={event => updateField('endsAt', event.target.value)} required />
+                </label>
+                <label className="field">
+                  <span>Gioi han tong</span>
+                  <input type="number" value={form.usageLimit || ''} onChange={event => updateField('usageLimit', event.target.value)} />
+                </label>
+                <label className="field">
+                  <span>Moi khach duoc dung</span>
+                  <input type="number" value={form.perUserLimit} onChange={event => updateField('perUserLimit', event.target.value)} />
                 </label>
               </div>
 
               <div className="condition-grid">
                 <label className="field field-wide">
-                  <span>Đối tượng áp dụng</span>
-                  <select defaultValue="new-customer">
-                    <option value="new-customer">Khách hàng mới</option>
-                    <option value="vip">Khách VIP</option>
-                    <option value="all">Tất cả khách hàng</option>
+                  <span>Doi tuong ap dung</span>
+                  <select value={form.audience} onChange={event => updateField('audience', event.target.value)}>
+                    <option value="ALL">Tat ca khach hang</option>
+                    <option value="NEW_CUSTOMER">Khach moi</option>
+                    <option value="VIP">Khach VIP</option>
                   </select>
                 </label>
                 <label className="field field-wide">
-                  <span>Sản phẩm áp dụng</span>
-                  <select defaultValue="all-costumes">
-                    <option value="all-costumes">Toàn bộ trang phục</option>
-                    <option value="new-arrivals">Bộ sưu tập mới</option>
-                    <option value="event-costumes">Trang phục sự kiện</option>
+                  <span>San pham ap dung</span>
+                  <select value={form.productScope} onChange={event => updateField('productScope', event.target.value)}>
+                    <option value="SELLER_PRODUCTS">San pham cua shop</option>
+                    <option value="ALL_PRODUCTS">Toan bo san pham</option>
                   </select>
                 </label>
                 <label className="field field-wide">
-                  <span>Điều kiện bổ sung</span>
-                  <textarea rows="4" placeholder="Ví dụ: Mỗi khách chỉ dùng 1 lần, không áp dụng cùng ưu đãi khác." />
+                  <span>Cho phep ap chung</span>
+                  <select value={form.stackable ? 'yes' : 'no'} onChange={event => updateField('stackable', event.target.value === 'yes')}>
+                    <option value="no">Khong ap chung</option>
+                    <option value="yes">Cho phep ap chung</option>
+                  </select>
+                </label>
+                <label className="field field-wide">
+                  <span>Dieu kien bo sung</span>
+                  <textarea rows="4" value={form.description} onChange={event => updateField('description', event.target.value)} />
                 </label>
               </div>
 
-              <div className="promo-template-row">
-                {voucherTemplates.map((template) => (
-                  <button type="button" className="template-chip" key={template.code}>
-                    <strong>{template.code}</strong>
-                    <span>{template.label}</span>
-                    <small>{template.desc}</small>
-                  </button>
-                ))}
-              </div>
-
+              {message && <p className="card-desc">{message}</p>}
               <div className="promotion-actions-row">
-                <button type="button" className="promotion-btn subtle">Lưu nháp</button>
-                <button type="button" className="promotion-btn secondary">Xem trước</button>
-                <button type="submit" className="promotion-btn primary">Tạo voucher</button>
+                <button type="submit" className="promotion-btn primary" disabled={saving}>
+                  {saving ? 'Dang tao...' : 'Tao voucher'}
+                </button>
               </div>
             </form>
           </article>
 
           <div className="promotion-list">
-            {activePromotions.map((item) => (
-              <PromotionCard key={item.code} item={item} />
+            {loading ? (
+              <article className="promotions-panel"><p className="card-desc">Dang tai voucher...</p></article>
+            ) : vouchers.length === 0 ? (
+              <article className="promotions-panel"><p className="card-desc">Chua co voucher nao.</p></article>
+            ) : vouchers.map(item => (
+              <PromotionCard key={item.id} item={item} onToggle={toggleVoucher} />
             ))}
           </div>
         </div>
@@ -242,44 +311,8 @@ function Promotions() {
           <article className="promotions-panel compact-panel">
             <div className="card-head compact-head">
               <div>
-                <h2 className="card-title">Điều kiện áp dụng</h2>
-                <p className="card-desc">Các cấu hình quan trọng cần theo dõi trước khi phát hành</p>
-              </div>
-            </div>
-
-            <div className="rules-list">
-              {applicationRules.map((rule) => (
-                <div className="rule-item" key={rule.label}>
-                  <div>
-                    <h3>{rule.label}</h3>
-                    <p>{rule.hint}</p>
-                  </div>
-                  <strong>{rule.value}</strong>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="promotions-panel compact-panel highlight-panel">
-            <div className="card-head compact-head">
-              <div>
-                <h2 className="card-title">Mẹo triển khai</h2>
-                <p className="card-desc">Gợi ý để chương trình khuyến mãi dễ dùng và ít lỗi</p>
-              </div>
-            </div>
-
-            <div className="tips-list">
-              <div className="tip-item">
-                <span>01</span>
-                <p>Đặt mã ngắn, dễ nhớ và phản ánh đúng chiến dịch để khách dễ nhập.</p>
-              </div>
-              <div className="tip-item">
-                <span>02</span>
-                <p>Luôn đặt đơn tối thiểu để giữ biên lợi nhuận khi chạy khuyến mãi phần trăm.</p>
-              </div>
-              <div className="tip-item">
-                <span>03</span>
-                <p>Giới hạn số lượt dùng theo từng khách để tránh lạm dụng voucher.</p>
+                <h2 className="card-title">Dieu kien da co</h2>
+                <p className="card-desc">Voucher hien co ngay het han, don toi thieu, gioi han luot, gioi han moi user, max discount va co ap chung hay khong.</p>
               </div>
             </div>
           </article>

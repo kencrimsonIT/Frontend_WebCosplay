@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import '../styles/Checkout.css'
 import { createOrder } from '../api/order_api'
 import { createOnlinePayment } from '../api/payment_api'
+import { applyVoucher } from '../api/voucher_api'
 
 const WARRANTY_LABEL = { none: 'Không BH', basic: 'Cơ bản', standard: 'Tiêu chuẩn', premium: 'Cao cấp' }
 
@@ -99,15 +100,52 @@ function Checkout() {
   const [snapshotTotal, setSnapshotTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [voucherCode, setVoucherCode] = useState('')
+  const [voucher, setVoucher] = useState(null)
+  const [voucherMessage, setVoucherMessage] = useState('')
+  const [voucherLoading, setVoucherLoading] = useState(false)
 
   const rentalTotal   = cart.reduce((s, i) => s + (i.rentalPrice  ?? 0) * (i.quantity ?? 1), 0)
   const warrantyTotal = cart.reduce((s, i) => s + (i.warrantyFee  ?? 0) * (i.quantity ?? 1), 0)
   const depositTotal  = cart.reduce((s, i) => s + (i.deposit      ?? 0) * (i.quantity ?? 1), 0)
-  const total = rentalTotal + warrantyTotal + depositTotal
+  const discountTotal = voucher?.discountAmount ?? 0
+  const total = Math.max(rentalTotal + warrantyTotal + depositTotal - discountTotal, 0)
+  const orderItems = cart.map(item => ({
+    productId: item.productId,
+    productName: item.name,
+    categoryName: item.category,
+    size: item.size,
+    days: item.days,
+    quantity: item.quantity || 1,
+    lineTotal: (item.rentalPrice ?? 0) * (item.quantity || 1),
+  }))
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleApplyVoucher = async () => {
+    if (!voucherCode.trim()) return
+    setVoucherLoading(true)
+    setVoucherMessage('')
+    setVoucher(null)
+    try {
+      const result = await applyVoucher({
+        code: voucherCode,
+        rentalTotal,
+        warrantyTotal,
+        depositTotal,
+        items: orderItems,
+      })
+      setVoucher(result)
+      setVoucherCode(result.code)
+      setVoucherMessage(`${result.title}: giam ${(result.discountAmount ?? 0).toLocaleString('vi-VN')}d`)
+    } catch (err) {
+      setVoucherMessage(err?.message || 'Voucher khong hop le.')
+    } finally {
+      setVoucherLoading(false)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -128,17 +166,11 @@ function Checkout() {
         warrantyTotal: warrantyTotal,
         depositTotal: depositTotal,
         grandTotal: total,
+        voucherCode: voucher?.code || null,
+        discountTotal,
         rentFrom: cart[0]?.startDate,
         rentTo: cart[0]?.endDate,
-        items: cart.map(item => ({
-          productId: item.productId,
-          productName: item.name,
-          categoryName: item.category,
-          size: item.size,
-          days: item.days,
-          quantity: item.quantity || 1,
-          lineTotal: item.rentalPrice
-        }))
+        items: orderItems
       }
 
       const response = await createOrder(orderRequest)
@@ -323,6 +355,31 @@ function Checkout() {
                 <span>{depositTotal.toLocaleString('vi-VN')}đ</span>
               </div>
               <div className="summary-divider" />
+              <div className="checkout-voucher-box">
+                <label className="checkout-voucher-label">Ma voucher</label>
+                <div className="checkout-voucher-row">
+                  <input
+                    type="text"
+                    value={voucherCode}
+                    onChange={event => {
+                      setVoucherCode(event.target.value.toUpperCase())
+                      setVoucher(null)
+                      setVoucherMessage('')
+                    }}
+                    placeholder="COSPLAY10"
+                  />
+                  <button type="button" onClick={handleApplyVoucher} disabled={voucherLoading || !voucherCode.trim()}>
+                    {voucherLoading ? 'Dang ap dung...' : 'Ap dung'}
+                  </button>
+                </div>
+                {voucherMessage && <p className="checkout-voucher-message">{voucherMessage}</p>}
+              </div>
+              {discountTotal > 0 && (
+                <div className="summary-row">
+                  <span>Voucher {voucher.code}</span>
+                  <span>-{discountTotal.toLocaleString('vi-VN')}Ä‘</span>
+                </div>
+              )}
               <div className="summary-row total">
                 <span>Tổng Thanh Toán</span>
                 <span>{total.toLocaleString('vi-VN')}đ</span>
