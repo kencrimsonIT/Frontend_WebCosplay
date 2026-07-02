@@ -96,6 +96,7 @@ function ProductDetail() {
   const rentalPrice = days * unitPrice
   const warrantyFee = warrantyPackages.find(item => item.key === selectedWarranty)?.fee ?? 0
   const totalPrice = rentalPrice + warrantyFee
+  const maxQuantity = Number(product.quantity ?? product.stock ?? product.availableQuantity ?? 1)
 
   const validate = () => {
     const nextErrors = {}
@@ -103,6 +104,7 @@ function ProductDetail() {
     if (!startDate) nextErrors.startDate = 'Vui lòng chọn ngày nhận.'
     if (!endDate) nextErrors.endDate = 'Vui lòng chọn ngày trả.'
     if (startDate && endDate && days <= 0) nextErrors.endDate = 'Ngày trả phải sau ngày nhận.'
+    if (maxQuantity <= 0) nextErrors.stock = 'San pham dang het hang.'
     return nextErrors
   }
 
@@ -118,6 +120,7 @@ function ProductDetail() {
     pricePerDay: unitPrice,
     rentalPrice,
     deposit: product.deposit ?? 0,
+    maxQuantity,
     warranty: selectedWarranty,
     warrantyFee,
     accessories: product.includes ?? [],
@@ -351,6 +354,7 @@ function ProductDetail() {
           )}
 
           <div className="pd-actions">
+            {errors.stock && <p className="pd-error">{errors.stock}</p>}
             <button className={`btn-pd-primary ${added ? 'btn-success' : ''}`} onClick={handleAddToCart}>
               {added ? '✓ Đã thêm vào giỏ' : '🛒 Thêm vào giỏ hàng'}
             </button>
