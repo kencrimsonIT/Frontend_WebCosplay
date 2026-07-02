@@ -24,6 +24,8 @@
   /* Border Colors */
   --color-border-primary: #e5e7eb;   /* Viền chính */
   --color-border-tertiary: #d1d5db;  /* Viền phụ/đậm hơn chút */
+
+  --color-border-secondary: #d1d5db;
 }
 
 @media (max-width: 768px) {

@@ -8,6 +8,7 @@ import { DemoProvider } from './context/DemoStore'
 import UserLayout from './layout/UserLayout'
 import AdminLayout from './layout/AdminLayout'
 import SellerLayout from './layout/SellerLayout'
+import SellerOrders from './pages/SellerOrders'
 
 import Home from './pages/Home'
 import Products from './pages/Products'
@@ -83,6 +84,7 @@ function App() {
               <Route index element={<SellerDashboard />} />
               <Route path="add-product" element={<AddProduct />} />
               <Route path="manage-inventory" element={<ManageInventory />} />
+              <Route path="orders" element={<SellerOrders />} />
               <Route path="promotions" element={<Promotions />} />
               <Route path="schedule" element={<Schedule />} />
               <Route path="revenue" element={<Revenue />} />

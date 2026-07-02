@@ -156,3 +156,12 @@ export const deleteSellerPromotion = async (id) => {
         throw error.response?.data || error.message;
     }
 };
+// Thêm hàm này vào dưới hàm updateSellerOrderStatus
+export const cancelSellerOrder = async (id, reason = '') => {
+    try {
+        const response = await axiosInstance.delete(`/api/seller/orders/${id}`, { data: { reason } });
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
