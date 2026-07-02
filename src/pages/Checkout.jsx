@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useDemoStore } from '../context/DemoStore'
 import { useAuth } from '../context/AuthContext'
 import '../styles/Checkout.css'
-import { createOrder, checkPromotion } from '../api/order_api'
+import { createOrder } from '../api/order_api'
 import { createOnlinePayment } from '../api/payment_api'
 import { applyVoucher } from '../api/voucher_api'
 
@@ -101,10 +101,6 @@ function Checkout() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [promoCode, setPromoCode] = useState('')
-  const [appliedPromo, setAppliedPromo] = useState(null)
-  const [promoError, setPromoError] = useState('')
-  const [checkingPromo, setCheckingPromo] = useState(false)
   const [voucherCode, setVoucherCode] = useState('')
   const [voucher, setVoucher] = useState(null)
   const [voucherMessage, setVoucherMessage] = useState('')
@@ -124,45 +120,13 @@ function Checkout() {
     lineTotal: (item.rentalPrice ?? 0) * (item.quantity || 1),
   }))
 
-  let promoDiscount = 0
-  if (appliedPromo) {
-    if (appliedPromo.type === 'PERCENT') {
-      promoDiscount = (rentalTotal * appliedPromo.value) / 100
-    } else if (appliedPromo.type === 'AMOUNT') {
-      promoDiscount = appliedPromo.value
-    }
-  }
   const voucherDiscount = voucher?.discountAmount ?? 0
-  const discountTotal = voucher ? voucherDiscount : promoDiscount
+  const discountTotal = voucherDiscount
   const total = Math.max(0, subTotal - discountTotal)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) return
-    setCheckingPromo(true)
-    setPromoError('')
-    try {
-      const res = await checkPromotion(promoCode, subTotal)
-      setAppliedPromo(res)
-      setVoucher(null)
-      setVoucherCode('')
-      setVoucherMessage('')
-    } catch (err) {
-      setPromoError(err?.message || 'Không thể áp dụng mã khuyến mãi')
-      setAppliedPromo(null)
-    } finally {
-      setCheckingPromo(false)
-    }
-  }
-
-  const handleRemovePromo = () => {
-    setAppliedPromo(null)
-    setPromoCode('')
-    setPromoError('')
   }
 
   const handleApplyVoucher = async () => {
@@ -180,9 +144,6 @@ function Checkout() {
       })
       setVoucher(result)
       setVoucherCode(result.code)
-      setAppliedPromo(null)
-      setPromoCode('')
-      setPromoError('')
       setVoucherMessage(`${result.title}: giam ${(result.discountAmount ?? 0).toLocaleString('vi-VN')}d`)
     } catch (err) {
       setVoucherMessage(err?.message || 'Voucher khong hop le.')
@@ -225,7 +186,7 @@ function Checkout() {
         discountTotal: discountTotal,
         grandTotal: total,
         voucherCode: voucher?.code || null,
-        promotionCode: voucher ? null : appliedPromo?.code || null,
+        promotionCode: null,
         rentFrom: cart[0]?.startDate,
         rentTo: cart[0]?.endDate,
         items: orderItems
@@ -445,31 +406,6 @@ function Checkout() {
                   {voucherMessage && <p className="checkout-voucher-message">{voucherMessage}</p>}
                 </div>
 
-                <div className="checkout-promo-section">
-                  {!appliedPromo ? (
-                      <div className="promo-input-group">
-                        <input
-                            type="text"
-                            placeholder="Mã giảm giá"
-                            value={promoCode}
-                            onChange={e => setPromoCode(e.target.value.toUpperCase())}
-                            disabled={checkingPromo || loading || !!voucher}
-                        />
-                        <button type="button" onClick={handleApplyPromo} disabled={!promoCode.trim() || checkingPromo || loading || !!voucher}>
-                          {checkingPromo ? 'Đang ktra...' : 'Áp dụng'}
-                        </button>
-                      </div>
-                  ) : (
-                      <div className="applied-promo">
-                        <div>
-                          <span className="promo-badge">🎟️ {appliedPromo.code}</span>
-                          <span className="promo-desc">{appliedPromo.title}</span>
-                        </div>
-                        <button type="button" onClick={handleRemovePromo} disabled={loading}>✕</button>
-                      </div>
-                  )}
-                  {promoError && <p className="promo-error">{promoError}</p>}
-                </div>
 
                 {discountTotal > 0 && (
                     <div className="summary-row discount-row">
