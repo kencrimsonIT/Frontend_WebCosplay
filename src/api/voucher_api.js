@@ -46,3 +46,30 @@ export const toggleSellerVoucher = async (id) => {
         throw error.response?.data || error.message;
     }
 };
+
+export const duplicateSellerVoucher = async (id) => {
+    try {
+        const response = await axiosInstance.post(`/api/seller/vouchers/${id}/duplicate`);
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+export const deleteSellerVoucher = async (id) => {
+    try {
+        const response = await axiosInstance.delete(`/api/seller/vouchers/${id}`);
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
+
+export const getSellerVoucherSummary = async () => {
+    try {
+        const response = await axiosInstance.get("/api/seller/vouchers/summary");
+        return unwrap(response);
+    } catch (error) {
+        throw error.response?.data || error.message;
+    }
+};
