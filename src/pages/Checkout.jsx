@@ -85,7 +85,7 @@ function OrderSuccess({ orderId, items, total }) {
 function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { cart, placeOrder, clearCart } = useDemoStore()
+  const { cart, cartMeta, clearCart } = useDemoStore()
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
     email: user?.email || '',
@@ -200,6 +200,14 @@ function Checkout() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (cart.length === 0) return
+    if (cartMeta.hasMixedRentalDates) {
+      setError('Mot don hang chi ho tro mot khoang ngay thue. Hay tach gio hang thanh nhieu don.')
+      return
+    }
+    if (cartMeta.hasStockIssue) {
+      setError('Gio hang co san pham vuot qua so luong ton kho.')
+      return
+    }
 
     setLoading(true)
     setError('')

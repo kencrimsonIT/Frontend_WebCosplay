@@ -1,4 +1,12 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  addCartItem,
+  clearRemoteCart,
+  fetchCart,
+  removeCartItem,
+  updateCartItemQuantity,
+} from '../api/cart_api'
+import { useAuth } from './AuthContext'
 
 const DemoCtx = createContext(null)
 
@@ -44,25 +52,211 @@ const SEED_ORDERS = [
 ]
 
 const SEED_PRODUCTS = []
+const CART_STORAGE_KEY = 'coser_cart_v1'
+
+function toNumber(value, fallback = 0) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+function cartIdentity(item) {
+  return [
+    item.productId,
+    item.size || '',
+    item.startDate || '',
+    item.endDate || '',
+    item.warranty || 'none',
+  ].join('|')
+}
+
+function normalizeCartItem(item) {
+  const maxQuantity = Math.max(0, toNumber(item.maxQuantity, 99))
+  const quantity = maxQuantity === 0 ? 0 : Math.min(Math.max(1, toNumber(item.quantity, 1)), maxQuantity)
+  return {
+    ...item,
+    cartKey: item.cartKey || `${item.productId}-${Date.now()}`,
+    cartIdentity: item.cartIdentity || cartIdentity(item),
+    quantity,
+    maxQuantity,
+    rentalPrice: toNumber(item.rentalPrice),
+    warrantyFee: toNumber(item.warrantyFee),
+    deposit: toNumber(item.deposit),
+    days: Math.max(1, toNumber(item.days, 1)),
+  }
+}
+
+function readStoredCart() {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.map(normalizeCartItem) : []
+  } catch {
+    return []
+  }
+}
+
+function hasAuthToken() {
+  return Boolean(localStorage.getItem('accessToken'))
+}
+
+function remoteCartItems(response) {
+  return Array.isArray(response?.items) ? response.items.map(normalizeCartItem) : []
+}
+
+function cartRequest(item) {
+  return {
+    productId: item.productId,
+    size: item.size || null,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    days: item.days,
+    quantity: item.quantity || 1,
+    warranty: item.warranty || 'none',
+    warrantyFee: item.warrantyFee || 0,
+  }
+}
+
+function remoteId(cartKey) {
+  const id = Number(cartKey)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+function cartMergeSignature(items) {
+  return items
+    .map(item => `${cartIdentity(item)}:${item.quantity || 1}`)
+    .sort()
+    .join(',')
+}
 
 export function DemoProvider({ children }) {
+  const { user } = useAuth()
   const [orders, setOrders] = useState(SEED_ORDERS)
   const [sellerProducts, setSellerProducts] = useState(SEED_PRODUCTS)
-  const [cart, setCart] = useState([])
+  const [cart, setCart] = useState(readStoredCart)
+
+  useEffect(() => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
+  }, [cart])
+
+  useEffect(() => {
+    if (!user || !hasAuthToken()) return
+
+    let active = true
+    const localCart = cart
+
+    const loadRemoteCart = async () => {
+      try {
+        const remote = await fetchCart()
+        if (!active) return
+        const localOnlyItems = localCart.filter(item => !remoteId(item.cartKey))
+        if (localOnlyItems.length === 0) {
+          setCart(remoteCartItems(remote))
+          return
+        }
+
+        const mergeKey = `coser_cart_merge_${user.email}_${cartMergeSignature(localOnlyItems)}`
+        if (sessionStorage.getItem(mergeKey)) {
+          setCart(remoteCartItems(remote))
+          return
+        }
+        sessionStorage.setItem(mergeKey, '1')
+
+        let latest = remote
+        for (const item of localOnlyItems) {
+          try {
+            latest = await addCartItem(cartRequest(item))
+          } catch {
+            // Skip unavailable local items; the server remains the source of truth.
+          }
+        }
+        if (active) {
+          const refreshed = await fetchCart()
+          setCart(remoteCartItems(refreshed || latest))
+        }
+      } catch {
+        // Keep local cart when backend is unavailable.
+      }
+    }
+
+    loadRemoteCart()
+    return () => {
+      active = false
+    }
+    // Per-action methods keep the server in sync after login.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email])
+
+  const applyRemoteCart = async (request) => {
+    if (!hasAuthToken()) return
+    try {
+      const remote = await request
+      setCart(remoteCartItems(remote))
+    } catch {
+      // Local cart remains usable if the sync request fails.
+    }
+  }
 
   const addToCart = (item) => {
-    setCart(prev => [...prev, { ...item, cartKey: `${item.productId}-${Date.now()}`, quantity: 1 }])
+    const nextItem = normalizeCartItem({ ...item, cartIdentity: cartIdentity(item) })
+    if (nextItem.maxQuantity <= 0) return
+    setCart(prev => {
+      const existingIndex = prev.findIndex(current => current.cartIdentity === nextItem.cartIdentity)
+      if (existingIndex === -1) {
+        return [...prev, nextItem]
+      }
+
+      return prev.map((current, index) => {
+        if (index !== existingIndex) return current
+        const maxQuantity = Math.max(current.maxQuantity || 1, nextItem.maxQuantity || 1)
+        return {
+          ...current,
+          maxQuantity,
+          quantity: Math.min((current.quantity || 1) + (nextItem.quantity || 1), maxQuantity),
+        }
+      })
+    })
+    applyRemoteCart(addCartItem(cartRequest(nextItem)))
   }
 
   const removeFromCart = (cartKey) => {
     setCart(prev => prev.filter(i => i.cartKey !== cartKey))
+    const id = remoteId(cartKey)
+    if (id) applyRemoteCart(removeCartItem(id))
   }
 
   const updateCartQty = (cartKey, qty) => {
-    setCart(prev => prev.map(i => i.cartKey === cartKey ? { ...i, quantity: Math.max(1, qty) } : i))
+    const nextQuantity = Math.max(1, toNumber(qty, 1))
+    setCart(prev => prev.map(i => {
+      if (i.cartKey !== cartKey) return i
+      const maxQuantity = Math.max(1, toNumber(i.maxQuantity, 99))
+      return { ...i, quantity: Math.min(nextQuantity, maxQuantity) }
+    }))
+    const id = remoteId(cartKey)
+    if (id) applyRemoteCart(updateCartItemQuantity(id, nextQuantity))
   }
 
-  const clearCart = () => setCart([])
+  const clearCart = () => {
+    setCart([])
+    applyRemoteCart(clearRemoteCart())
+  }
+
+  const cartMeta = useMemo(() => {
+    const rentalKeys = new Set(cart.map(item => `${item.startDate || ''}|${item.endDate || ''}`))
+    const stockIssues = cart.filter(item => (item.quantity || 1) > (item.maxQuantity || 99))
+    const rentalTotal = cart.reduce((s, i) => s + (i.rentalPrice ?? 0) * (i.quantity ?? 1), 0)
+    const warrantyTotal = cart.reduce((s, i) => s + (i.warrantyFee ?? 0) * (i.quantity ?? 1), 0)
+    const depositTotal = cart.reduce((s, i) => s + (i.deposit ?? 0) * (i.quantity ?? 1), 0)
+    return {
+      itemCount: cart.reduce((s, i) => s + (i.quantity ?? 1), 0),
+      rentalTotal,
+      warrantyTotal,
+      depositTotal,
+      total: rentalTotal + warrantyTotal + depositTotal,
+      hasMixedRentalDates: rentalKeys.size > 1,
+      hasStockIssue: stockIssues.length > 0,
+      stockIssues,
+    }
+  }, [cart])
 
   const placeOrder = (data) => {
     const idx = orders.length + 1
@@ -133,6 +327,7 @@ export function DemoProvider({ children }) {
         sellerProducts,
         addProduct,
         cart,
+        cartMeta,
         addToCart,
         removeFromCart,
         updateCartQty,
