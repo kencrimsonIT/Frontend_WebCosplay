@@ -1,233 +1,196 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  deleteSellerProduct,
-  getSellerProducts,
-  toggleSellerProduct,
-  updateSellerProduct,
-} from '../api/seller_api'
+import ProductCard from '../components/ProductCard'
+import { getProducts as fetchProductsApi } from '../api/product_api'
+import { useDemoStore } from '../context/DemoStore'
 import '../styles/ManageInventory.css'
 
 const STATUS_OPTIONS = [
-  { value: 'AVAILABLE', label: 'Co san' },
-  { value: 'RENTED', label: 'Da thue' },
-  { value: 'MAINTENANCE', label: 'Bao tri' },
-  { value: 'SOLD', label: 'Da ban' },
+  { value: 'available',   label: 'Có sẵn'  },
+  { value: 'rented',      label: 'Đã thuê'  },
+  { value: 'maintenance', label: 'Bảo trì'  },
+  { value: 'sold',        label: 'Đã bán'   },
 ]
 
-function money(value) {
-  return `${Number(value || 0).toLocaleString('vi-VN')}d`
-}
-
-function statusClass(status) {
-  return String(status || 'AVAILABLE').toLowerCase()
-}
-
 function ManageInventory() {
-  const [products, setProducts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [editingId, setEditingId] = useState(null)
-  const [editData, setEditData] = useState({ quantity: 0, inventoryStatus: 'AVAILABLE', visible: true })
-  const [savingId, setSavingId] = useState(null)
-
-  const loadProducts = () => {
-    setLoading(true)
-    setError('')
-    getSellerProducts()
-      .then(data => setProducts(Array.isArray(data) ? data : []))
-      .catch(err => setError(err?.message || 'Khong tai duoc danh sach san pham'))
-      .finally(() => setLoading(false))
-  }
+  const { sellerProducts } = useDemoStore()
+  const [products, setProducts]     = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [editingId, setEditingId]   = useState(null)
+  const [editData, setEditData]     = useState({ quantity: '', status: '' })
+  const [page, setPage]             = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [total, setTotal]           = useState(0)
+  const SIZE = 20
 
   useEffect(() => {
-    loadProducts()
-  }, [])
+    setLoading(true)
+    fetchProductsApi({ page, size: SIZE })
+        .then(response => {
+          // FIX: getProducts tra ve PagedResponse { content:[...], totalPages, totalElements }
+          // Code cu dung response.data.map() - sai vi data la object, khong phai array
+          const list = response?.data?.content
+              ?? response?.data
+              ?? []
+
+          const normalized = (Array.isArray(list) ? list : []).map((p, i) => ({
+            ...p,
+            image:       p.imageUrl,
+            price:       p.pricePerDay,
+            category:    p.categoryName,
+            description: p.description || 'Trang phuc cosplay cao cap.',
+            quantity:    (i % 3) + 1,
+            status:      'available',
+          }))
+
+          setProducts(normalized)
+          setTotalPages(response?.data?.totalPages ?? 1)
+          setTotal(response?.data?.totalElements ?? normalized.length)
+        })
+        .catch(err => {
+          console.error('Failed to fetch products for inventory:', err)
+          setProducts([])
+        })
+        .finally(() => setLoading(false))
+  }, [page])
 
   const handleEdit = (product) => {
     setEditingId(product.id)
-    setEditData({
-      quantity: product.quantity ?? 0,
-      inventoryStatus: product.inventoryStatus ?? 'AVAILABLE',
-      visible: product.visible ?? true,
-    })
+    setEditData({ quantity: product.quantity, status: product.status })
   }
 
-  const handleSave = async (product) => {
-    setSavingId(product.id)
-    try {
-      const payload = {
-        name: product.name,
-        categoryId: product.categoryId,
-        description: product.description,
-        pricePerDay: product.pricePerDay,
-        deposit: product.deposit,
-        imageUrl: product.imageUrl,
-        visible: editData.visible,
-        quantity: Number(editData.quantity),
-        inventoryStatus: editData.inventoryStatus,
-      }
-      const saved = await updateSellerProduct(product.id, payload)
-      setProducts(prev => prev.map(item => item.id === product.id ? saved : item))
-      setEditingId(null)
-    } catch (err) {
-      alert(err?.message || 'Khong luu duoc san pham')
-    } finally {
-      setSavingId(null)
-    }
+  const handleSave = (id) => {
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...editData } : p))
+    setEditingId(null)
   }
 
-  const handleToggle = async (product) => {
-    setSavingId(product.id)
-    try {
-      const saved = await toggleSellerProduct(product.id)
-      setProducts(prev => prev.map(item => item.id === product.id ? saved : item))
-    } catch (err) {
-      alert(err?.message || 'Khong doi duoc trang thai hien thi')
-    } finally {
-      setSavingId(null)
-    }
+  const handleCancel = () => {
+    setEditingId(null)
+    setEditData({ quantity: '', status: '' })
   }
 
-  const handleDelete = async (product) => {
-    if (!confirm(`Xoa/An san pham "${product.name}"? Backend se giu lich su neu san pham da co don.`)) return
-    setSavingId(product.id)
-    try {
-      await deleteSellerProduct(product.id)
-      setProducts(prev => prev.filter(item => item.id !== product.id))
-    } catch (err) {
-      alert(err?.message || 'Khong xoa duoc san pham')
-    } finally {
-      setSavingId(null)
-    }
-  }
+  const handleSell = () => { alert('San pham da duoc dang ban!') }
 
   return (
-    <div className="manage-inventory-page">
-      <header className="manage-inventory-header">
-        <span className="manage-inventory-label">Quan ly kho</span>
-        <h1 className="manage-inventory-title">Kho trang phuc cosplay</h1>
-        <p className="manage-inventory-subtitle">
-          Quan ly so luong, trang thai ton kho, gia thue, tien coc va hien thi san pham.
-        </p>
-        <Link to="/seller/add-product" className="btn-add-product">+ Them san pham moi</Link>
-      </header>
+      <div className="manage-inventory-page">
+        <header className="manage-inventory-header">
+          <span className="manage-inventory-label">Quan Ly Kho</span>
+          <h1 className="manage-inventory-title">Kho Trang Phuc Cosplay</h1>
+          <p className="manage-inventory-subtitle">Quan ly so luong, tinh trang va dang ban cac trang phuc cua ban.</p>
+          <Link to="/seller/add-product" className="btn-add-product">+ Them San Pham Moi</Link>
+        </header>
 
-      {loading && <div className="inventory-empty"><h3>Dang tai kho...</h3></div>}
-      {error && !loading && <div className="inventory-empty"><h3>{error}</h3></div>}
-
-      {!loading && !error && (
-        <div className="inventory-list">
-          {products.length > 0 ? (
-            <div className="inventory-grid">
-              {products.map(product => (
-                <div key={product.id} className="inventory-item">
-                  <div className="product-preview">
-                    <div className="new-product-card">
-                      {product.imageUrl ? (
-                        <div className="new-product-img-wrap">
-                          <img src={product.imageUrl} alt={product.name} className="new-product-img" />
-                          <span className="new-product-label">{product.visible ? 'Dang hien' : 'Dang an'}</span>
-                        </div>
+        {sellerProducts.length > 0 && (
+            <div className="new-products-section">
+              <div className="new-products-header">
+                <span className="new-products-badge">Moi dang - {sellerProducts.length}</span>
+                <h2 className="new-products-title">Trang phuc vua duoc dang</h2>
+              </div>
+              <div className="new-products-grid">
+                {sellerProducts.map(p => (
+                    <div key={p.id} className="new-product-card">
+                      {p.image ? (
+                          <div className="new-product-img-wrap">
+                            <img src={p.image} alt={p.name} className="new-product-img"
+                                 onError={e => { e.target.style.display = 'none' }} />
+                            <span className="new-product-label">Moi dang</span>
+                          </div>
                       ) : (
-                        <div className="new-product-img-placeholder"><span>No image</span></div>
+                          <div className="new-product-img-placeholder">
+                            <span>photo</span>
+                            <span className="new-product-label">Moi dang</span>
+                          </div>
                       )}
                       <div className="new-product-info">
-                        <h3 className="new-product-name">{product.name}</h3>
+                        <h3 className="new-product-name">{p.name}</h3>
                         <div className="new-product-meta">
-                          <span>{product.categoryName}</span>
-                          <span>{money(product.pricePerDay)}/ngay</span>
-                          <span>Coc: {money(product.deposit)}</span>
+                          {p.sizes?.length > 0 && <span>Size: {p.sizes.join(', ')}</span>}
+                          <span>{Number(p.rentalPrice).toLocaleString('vi-VN')}d/ngay</span>
+                          <span>Coc: {Number(p.deposit).toLocaleString('vi-VN')}d</span>
                         </div>
-                        <p>{product.description || 'Chua co mo ta'}</p>
+                        <div className="new-product-status">
+                          <span className="status available">Co san</span>
+                          <span className="new-product-qty">SL: 1</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                ))}
+              </div>
+            </div>
+        )}
 
-                  <div className="inventory-details">
-                    <div className="detail-row">
-                      <span className="label">So luong:</span>
-                      {editingId === product.id ? (
-                        <input
-                          type="number"
-                          value={editData.quantity}
-                          onChange={event => setEditData(prev => ({ ...prev, quantity: event.target.value }))}
-                          min="0"
-                          className="edit-input"
-                        />
-                      ) : (
-                        <span className="value">{product.quantity ?? 0}</span>
-                      )}
-                    </div>
-
-                    <div className="detail-row">
-                      <span className="label">Tinh trang:</span>
-                      {editingId === product.id ? (
-                        <select
-                          value={editData.inventoryStatus}
-                          onChange={event => setEditData(prev => ({ ...prev, inventoryStatus: event.target.value }))}
-                          className="edit-select"
-                        >
-                          {STATUS_OPTIONS.map(option => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className={`status ${statusClass(product.inventoryStatus)}`}>
-                          {STATUS_OPTIONS.find(option => option.value === product.inventoryStatus)?.label || product.inventoryStatus}
+        <div className="inventory-list">
+          {loading ? (
+              <div className="inventory-loading">Dang tai kho hang...</div>
+          ) : products.length > 0 ? (
+              <>
+                <p className="inventory-count">Hien thi {products.length} / {total} san pham</p>
+                <div className="inventory-grid">
+                  {products.map(product => (
+                      <div key={product.id} className="inventory-item">
+                        <div className="product-preview">
+                          <ProductCard product={product} isLessor={true} />
+                        </div>
+                        <div className="inventory-details">
+                          <div className="detail-row">
+                            <span className="label">So luong:</span>
+                            {editingId === product.id ? (
+                                <input type="number" value={editData.quantity} min="0" className="edit-input"
+                                       onChange={e => setEditData(prev => ({ ...prev, quantity: e.target.value }))} />
+                            ) : (
+                                <span className="value">{product.quantity}</span>
+                            )}
+                          </div>
+                          <div className="detail-row">
+                            <span className="label">Tinh trang:</span>
+                            {editingId === product.id ? (
+                                <select value={editData.status} className="edit-select"
+                                        onChange={e => setEditData(prev => ({ ...prev, status: e.target.value }))}>
+                                  {STATUS_OPTIONS.map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                  ))}
+                                </select>
+                            ) : (
+                                <span className={`status ${product.status}`}>
+                          {STATUS_OPTIONS.find(s => s.value === product.status)?.label}
                         </span>
-                      )}
-                    </div>
-
-                    {editingId === product.id && (
-                      <div className="detail-row">
-                        <span className="label">Hien thi:</span>
-                        <select
-                          value={String(editData.visible)}
-                          onChange={event => setEditData(prev => ({ ...prev, visible: event.target.value === 'true' }))}
-                          className="edit-select"
-                        >
-                          <option value="true">Hien thi</option>
-                          <option value="false">An san pham</option>
-                        </select>
+                            )}
+                          </div>
+                          <div className="actions">
+                            {editingId === product.id ? (
+                                <>
+                                  <button onClick={() => handleSave(product.id)} className="btn-save">Luu</button>
+                                  <button onClick={handleCancel} className="btn-cancel">Huy</button>
+                                </>
+                            ) : (
+                                <>
+                                  <button onClick={() => handleEdit(product)} className="btn-edit">Chinh sua</button>
+                                  <button onClick={() => handleSell(product.id)} className="btn-sell">Dang ban</button>
+                                </>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    )}
-
-                    <div className="actions">
-                      {editingId === product.id ? (
-                        <>
-                          <button onClick={() => handleSave(product)} className="btn-save" disabled={savingId === product.id}>
-                            {savingId === product.id ? 'Dang luu...' : 'Luu'}
-                          </button>
-                          <button onClick={() => setEditingId(null)} className="btn-cancel">Huy</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => handleEdit(product)} className="btn-edit">Chinh sua</button>
-                          <button onClick={() => handleToggle(product)} className="btn-sell" disabled={savingId === product.id}>
-                            {product.visible ? 'An' : 'Hien'}
-                          </button>
-                          <button onClick={() => handleDelete(product)} className="btn-cancel" disabled={savingId === product.id}>
-                            Xoa
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                {totalPages > 1 && (
+                    <div className="inventory-pagination">
+                      <button disabled={page === 0} onClick={() => setPage(p => p - 1)}>Truoc</button>
+                      <span>Trang {page + 1} / {totalPages}</span>
+                      <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Tiep</button>
+                    </div>
+                )}
+              </>
           ) : (
-            <div className="inventory-empty">
-              <div className="empty-icon">□</div>
-              <h3>Kho trong</h3>
-              <p>Ban chua co san pham nao trong kho.</p>
-              <Link to="/seller/add-product" className="btn-add-first">Them san pham dau tien</Link>
-            </div>
+              <div className="inventory-empty">
+                <div className="empty-icon">box</div>
+                <h3>Kho trong</h3>
+                <p>Ban chua co san pham nao trong kho.</p>
+                <Link to="/seller/add-product" className="btn-add-first">Them San Pham Dau Tien</Link>
+              </div>
           )}
         </div>
-      )}
-    </div>
+      </div>
   )
 }
 
