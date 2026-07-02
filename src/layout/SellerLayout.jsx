@@ -48,6 +48,17 @@ function SellerLayout() {
           </NavLink>
 
           <NavLink
+              to="/seller/orders"
+              className={({ isActive }) =>
+                  isActive ? 'seller-nav-link active' : 'seller-nav-link'
+              }
+          >
+            <span>📋</span>
+            Quản lý đơn hàng
+          </NavLink>
+
+
+          <NavLink
             to="/seller/promotions"
             className={({ isActive }) =>
               isActive ? 'seller-nav-link active' : 'seller-nav-link'

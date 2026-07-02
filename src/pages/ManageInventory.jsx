@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import ProductCard from '../components/ProductCard'
 import { getProducts as fetchProductsApi } from '../api/product_api'
+import { getSellerProducts } from '../api/seller_api'
 import { useDemoStore } from '../context/DemoStore'
 import '../styles/ManageInventory.css'
 
@@ -27,8 +28,6 @@ function ManageInventory() {
     setLoading(true)
     fetchProductsApi({ page, size: SIZE })
         .then(response => {
-          // FIX: getProducts tra ve PagedResponse { content:[...], totalPages, totalElements }
-          // Code cu dung response.data.map() - sai vi data la object, khong phai array
           const list = response?.data?.content
               ?? response?.data
               ?? []
