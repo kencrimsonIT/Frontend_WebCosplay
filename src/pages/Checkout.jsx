@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDemoStore } from '../context/DemoStore'
 import { useAuth } from '../context/AuthContext'
 import '../styles/Checkout.css'
-import { createOrder, checkPromotion } from '../api/order_api'
+import { createOrder } from '../api/order_api'
 import { createOnlinePayment } from '../api/payment_api'
 import { applyVoucher } from '../api/voucher_api'
 
+const CHECKOUT_DRAFT_KEY = 'coser_checkout_draft_v1'
 const WARRANTY_LABEL = { none: 'Không BH', basic: 'Cơ bản', standard: 'Tiêu chuẩn', premium: 'Cao cấp' }
 
 const FLOW_STEPS = [
@@ -16,6 +17,37 @@ const FLOW_STEPS = [
   { label: 'Đang thuê',    key: 'renting' },
   { label: 'Trả đồ',       key: 'returned' },
 ]
+
+function validateVoucherPlan(groups) {
+  const usage = new Map()
+
+  groups.forEach(group => {
+    if (!group.voucherCode) return
+    const key = group.voucherId || group.voucherCode
+    const current = usage.get(key) || {
+      code: group.voucherCode,
+      planned: 0,
+      usageLimit: group.voucherUsageLimit,
+      perUserLimit: group.voucherPerUserLimit,
+      usedCount: Number(group.voucherUsedCount || 0),
+      userUsedCount: Number(group.voucherUserUsedCount || 0),
+    }
+
+    current.planned += 1
+    usage.set(key, current)
+  })
+
+  for (const item of usage.values()) {
+    if (item.usageLimit && item.planned > item.usageLimit - item.usedCount) {
+      return `Voucher ${item.code} không còn đủ lượt cho ${item.planned} đơn đã chọn.`
+    }
+    if (item.perUserLimit && item.planned > item.perUserLimit - item.userUsedCount) {
+      return `Voucher ${item.code} chỉ còn ${Math.max(0, item.perUserLimit - item.userUsedCount)} lượt dùng cho tài khoản này. Hãy bỏ mã ở bớt đơn.`
+    }
+  }
+
+  return ''
+}
 
 function OrderSuccess({ orderId, items, total }) {
   return (
@@ -85,7 +117,16 @@ function OrderSuccess({ orderId, items, total }) {
 function Checkout() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { cart, cartMeta, clearCart } = useDemoStore()
+  const { cart, cartMeta, clearCart, removeFromCart } = useDemoStore()
+  const [checkoutDraft] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem(CHECKOUT_DRAFT_KEY)
+      const parsed = raw ? JSON.parse(raw) : null
+      return Array.isArray(parsed?.groups) && parsed.groups.length > 0 ? parsed : null
+    } catch {
+      return null
+    }
+  })
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
     email: user?.email || '',
@@ -101,20 +142,28 @@ function Checkout() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [promoCode, setPromoCode] = useState('')
-  const [appliedPromo, setAppliedPromo] = useState(null)
-  const [promoError, setPromoError] = useState('')
-  const [checkingPromo, setCheckingPromo] = useState(false)
   const [voucherCode, setVoucherCode] = useState('')
   const [voucher, setVoucher] = useState(null)
   const [voucherMessage, setVoucherMessage] = useState('')
   const [voucherLoading, setVoucherLoading] = useState(false)
 
-  const rentalTotal   = cart.reduce((s, i) => s + (i.rentalPrice  ?? 0) * (i.quantity ?? 1), 0)
-  const warrantyTotal = cart.reduce((s, i) => s + (i.warrantyFee  ?? 0) * (i.quantity ?? 1), 0)
-  const depositTotal  = cart.reduce((s, i) => s + (i.deposit      ?? 0) * (i.quantity ?? 1), 0)
+  const checkoutGroups = checkoutDraft?.groups || null
+  const checkoutItems = useMemo(
+    () => checkoutGroups ? checkoutGroups.flatMap(group => group.items || []) : cart,
+    [checkoutGroups, cart],
+  )
+  const draftDiscountTotal = checkoutGroups?.reduce((sum, group) => sum + (group.discountTotal || 0), 0) || 0
+  const rentalTotal = checkoutGroups
+    ? checkoutGroups.reduce((sum, group) => sum + (group.rentalTotal || 0), 0)
+    : cart.reduce((s, i) => s + (i.rentalPrice ?? 0) * (i.quantity ?? 1), 0)
+  const warrantyTotal = checkoutGroups
+    ? checkoutGroups.reduce((sum, group) => sum + (group.warrantyTotal || 0), 0)
+    : cart.reduce((s, i) => s + (i.warrantyFee ?? 0) * (i.quantity ?? 1), 0)
+  const depositTotal = checkoutGroups
+    ? checkoutGroups.reduce((sum, group) => sum + (group.depositTotal || 0), 0)
+    : cart.reduce((s, i) => s + (i.deposit ?? 0) * (i.quantity ?? 1), 0)
   const subTotal = rentalTotal + warrantyTotal + depositTotal
-  const orderItems = cart.map(item => ({
+  const orderItems = checkoutItems.map(item => ({
     productId: item.productId,
     productName: item.name,
     categoryName: item.category,
@@ -124,45 +173,14 @@ function Checkout() {
     lineTotal: (item.rentalPrice ?? 0) * (item.quantity || 1),
   }))
 
-  let promoDiscount = 0
-  if (appliedPromo) {
-    if (appliedPromo.type === 'PERCENT') {
-      promoDiscount = (rentalTotal * appliedPromo.value) / 100
-    } else if (appliedPromo.type === 'AMOUNT') {
-      promoDiscount = appliedPromo.value
-    }
-  }
   const voucherDiscount = voucher?.discountAmount ?? 0
-  const discountTotal = voucher ? voucherDiscount : promoDiscount
+  const discountTotal = checkoutGroups ? draftDiscountTotal : voucherDiscount
   const total = Math.max(0, subTotal - discountTotal)
+  const hasMultipleCheckoutGroups = (checkoutGroups?.length || 0) > 1
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) return
-    setCheckingPromo(true)
-    setPromoError('')
-    try {
-      const res = await checkPromotion(promoCode, subTotal)
-      setAppliedPromo(res)
-      setVoucher(null)
-      setVoucherCode('')
-      setVoucherMessage('')
-    } catch (err) {
-      setPromoError(err?.message || 'Không thể áp dụng mã khuyến mãi')
-      setAppliedPromo(null)
-    } finally {
-      setCheckingPromo(false)
-    }
-  }
-
-  const handleRemovePromo = () => {
-    setAppliedPromo(null)
-    setPromoCode('')
-    setPromoError('')
   }
 
   const handleApplyVoucher = async () => {
@@ -180,12 +198,9 @@ function Checkout() {
       })
       setVoucher(result)
       setVoucherCode(result.code)
-      setAppliedPromo(null)
-      setPromoCode('')
-      setPromoError('')
-      setVoucherMessage(`${result.title}: giam ${(result.discountAmount ?? 0).toLocaleString('vi-VN')}d`)
+      setVoucherMessage(`${result.title}: giảm ${(result.discountAmount ?? 0).toLocaleString('vi-VN')}đ`)
     } catch (err) {
-      setVoucherMessage(err?.message || 'Voucher khong hop le.')
+      setVoucherMessage(err?.message || 'Voucher không hợp lệ.')
     } finally {
       setVoucherLoading(false)
     }
@@ -199,13 +214,17 @@ function Checkout() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (cart.length === 0) return
-    if (cartMeta.hasMixedRentalDates) {
-      setError('Mot don hang chi ho tro mot khoang ngay thue. Hay tach gio hang thanh nhieu don.')
+    if (checkoutItems.length === 0) return
+    if (!checkoutGroups && cartMeta.hasMixedRentalDates) {
+      setError('Một đơn hàng chỉ hỗ trợ một khoảng ngày thuê. Hãy tách giỏ hàng thành nhiều đơn.')
       return
     }
-    if (cartMeta.hasStockIssue) {
-      setError('Gio hang co san pham vuot qua so luong ton kho.')
+    if (!checkoutGroups && cartMeta.hasStockIssue) {
+      setError('Giỏ hàng có sản phẩm vượt quá số lượng tồn kho.')
+      return
+    }
+    if (hasMultipleCheckoutGroups && (formData.paymentMethod === 'VNPAY' || formData.paymentMethod === 'MOMO')) {
+      setError('Thanh toán online nhiều đơn cùng lúc chưa được hỗ trợ. Vui lòng chọn COD để đặt nhiều đơn trong một lần.')
       return
     }
 
@@ -213,26 +232,90 @@ function Checkout() {
     setError('')
 
     try {
-      const orderRequest = {
+      let groupsForSubmit = checkoutGroups
+      if (checkoutGroups?.length) {
+        groupsForSubmit = []
+        for (const group of checkoutGroups) {
+          if (!group.voucherCode) {
+            groupsForSubmit.push(group)
+            continue
+          }
+
+          const latestVoucher = await applyVoucher({
+            code: group.voucherCode,
+            rentalTotal: group.rentalTotal,
+            warrantyTotal: group.warrantyTotal,
+            depositTotal: group.depositTotal,
+            items: group.orderItems,
+          })
+
+          const latestDiscount = latestVoucher.discountAmount || 0
+          groupsForSubmit.push({
+            ...group,
+            discountTotal: latestDiscount,
+            grandTotal: Math.max(0, (group.rentalTotal || 0) + (group.warrantyTotal || 0) + (group.depositTotal || 0) - latestDiscount),
+            voucherId: latestVoucher.voucherId || group.voucherId,
+            voucherUsageLimit: latestVoucher.usageLimit ?? group.voucherUsageLimit,
+            voucherPerUserLimit: latestVoucher.perUserLimit ?? group.voucherPerUserLimit,
+            voucherUsedCount: latestVoucher.usedCount ?? group.voucherUsedCount,
+            voucherUserUsedCount: latestVoucher.userUsedCount ?? group.voucherUserUsedCount,
+          })
+        }
+
+        const voucherError = validateVoucherPlan(groupsForSubmit)
+        if (voucherError) {
+          setError(voucherError)
+          setLoading(false)
+          return
+        }
+      }
+
+      const contactData = {
         customerName: formData.fullName,
         customerPhone: formData.phone,
         customerEmail: formData.email,
         shippingAddress: `${formData.address}, ${formData.city}`,
         paymentMethod: formData.paymentMethod,
-        rentalTotal: rentalTotal,
-        warrantyTotal: warrantyTotal,
-        depositTotal: depositTotal,
-        discountTotal: discountTotal,
-        grandTotal: total,
-        voucherCode: voucher?.code || null,
-        promotionCode: voucher ? null : appliedPromo?.code || null,
-        rentFrom: cart[0]?.startDate,
-        rentTo: cart[0]?.endDate,
-        items: orderItems
       }
 
-      const response = await createOrder(orderRequest)
-      const order = response.data
+      const requests = groupsForSubmit?.length
+        ? groupsForSubmit.map(group => ({
+          ...contactData,
+          rentalTotal: group.rentalTotal,
+          warrantyTotal: group.warrantyTotal,
+          depositTotal: group.depositTotal,
+          discountTotal: group.discountTotal || 0,
+          grandTotal: group.grandTotal,
+          voucherCode: group.voucherCode || null,
+          promotionCode: null,
+          rentFrom: group.startDate,
+          rentTo: group.endDate,
+          items: group.orderItems,
+        }))
+        : [{
+          ...contactData,
+          rentalTotal,
+          warrantyTotal,
+          depositTotal,
+          discountTotal,
+          grandTotal: total,
+          voucherCode: voucher?.code || null,
+          promotionCode: null,
+          rentFrom: checkoutItems[0]?.startDate,
+          rentTo: checkoutItems[0]?.endDate,
+          items: orderItems,
+        }]
+
+      const submittedTotal = groupsForSubmit?.length
+        ? groupsForSubmit.reduce((sum, group) => sum + (group.grandTotal || 0), 0)
+        : total
+      const createdOrders = []
+      for (const request of requests) {
+        const response = await createOrder(request)
+        createdOrders.push(response?.data ?? response)
+      }
+
+      const order = createdOrders[0]
 
       if (formData.paymentMethod === 'VNPAY' || formData.paymentMethod === 'MOMO') {
         const paymentResponse = await createOnlinePayment({
@@ -249,10 +332,15 @@ function Checkout() {
       }
 
       // COD path
-      setSnapshotCart([...cart])
-      setSnapshotTotal(total)
-      setPlacedOrderId(order.orderCode)
-      clearCart()
+      setSnapshotCart([...checkoutItems])
+      setSnapshotTotal(submittedTotal)
+      setPlacedOrderId(createdOrders.map(item => item.orderCode).join(', '))
+      if (checkoutGroups?.length) {
+        checkoutItems.forEach(item => removeFromCart(item.cartKey))
+        sessionStorage.removeItem(CHECKOUT_DRAFT_KEY)
+      } else {
+        clearCart()
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' })
 
     } catch (err) {
@@ -264,7 +352,7 @@ function Checkout() {
   }
 
   /* Giỏ trống, chưa order */
-  if (!placedOrderId && cart.length === 0) {
+  if (!placedOrderId && checkoutItems.length === 0) {
     return (
         <div className="checkout-page">
           <div className="checkout-empty">
@@ -353,20 +441,24 @@ function Checkout() {
                     <span className="payment-desc">Bạn sẽ thanh toán tiền thuê và tiền cọc khi nhận trang phục.</span>
                   </div>
                 </label>
-                <label className={`payment-option ${formData.paymentMethod === 'VNPAY' ? 'active' : ''}`}>
+                <label className={`payment-option ${formData.paymentMethod === 'VNPAY' ? 'active' : ''} ${hasMultipleCheckoutGroups ? 'disabled' : ''}`}>
                   <input type="radio" name="paymentMethod" value="VNPAY"
-                         checked={formData.paymentMethod === 'VNPAY'} onChange={handleInputChange} disabled={loading} />
+                         checked={formData.paymentMethod === 'VNPAY'} onChange={handleInputChange} disabled={loading || hasMultipleCheckoutGroups} />
                   <div className="payment-info">
                     <span className="payment-name">Thanh toán qua VNPay</span>
-                    <span className="payment-desc">Thanh toán an toàn qua cổng VNPay (ATM/Visa/MasterCard/QR).</span>
+                    <span className="payment-desc">
+                      {hasMultipleCheckoutGroups ? 'Chỉ hỗ trợ khi thanh toán một đơn.' : 'Thanh toán an toàn qua cổng VNPay (ATM/Visa/MasterCard/QR).'}
+                    </span>
                   </div>
                 </label>
-                <label className={`payment-option ${formData.paymentMethod === 'MOMO' ? 'active' : ''}`}>
+                <label className={`payment-option ${formData.paymentMethod === 'MOMO' ? 'active' : ''} ${hasMultipleCheckoutGroups ? 'disabled' : ''}`}>
                   <input type="radio" name="paymentMethod" value="MOMO"
-                         checked={formData.paymentMethod === 'MOMO'} onChange={handleInputChange} disabled={loading} />
+                         checked={formData.paymentMethod === 'MOMO'} onChange={handleInputChange} disabled={loading || hasMultipleCheckoutGroups} />
                   <div className="payment-info">
                     <span className="payment-name">Thanh toán qua MoMo</span>
-                    <span className="payment-desc">Thanh toán nhanh chóng bằng ví điện tử MoMo.</span>
+                    <span className="payment-desc">
+                      {hasMultipleCheckoutGroups ? 'Chỉ hỗ trợ khi thanh toán một đơn.' : 'Thanh toán nhanh chóng bằng ví điện tử MoMo.'}
+                    </span>
                   </div>
                 </label>
               </div>
@@ -377,8 +469,21 @@ function Checkout() {
           <aside className="checkout-summary">
             <div className="summary-card">
               <h3 className="summary-title">Đơn Hàng Của Bạn</h3>
+              {checkoutGroups?.length > 0 && (
+                  <div className="checkout-draft-groups">
+                    {checkoutGroups.map(group => (
+                        <div key={group.key} className="checkout-draft-group">
+                          <div>
+                            <strong>Đơn {group.index}</strong>
+                            <span>{group.dateRange}</span>
+                          </div>
+                          <span>{(group.grandTotal || 0).toLocaleString('vi-VN')}đ</span>
+                        </div>
+                    ))}
+                  </div>
+              )}
               <div className="order-items-mini">
-                {cart.map(item => (
+                {checkoutItems.map(item => (
                     <div key={item.cartKey} className="mini-item">
                       <div>
                         <p className="mini-item-name">{item.name}</p>
@@ -414,9 +519,13 @@ function Checkout() {
                 </div>
 
                 <div className="checkout-voucher-box">
-                  {!voucher ? (
+                  {checkoutGroups?.length > 0 ? (
+                      <div className="checkout-voucher-locked">
+                        Voucher đã được áp riêng cho từng đơn ở giỏ hàng.
+                      </div>
+                  ) : !voucher ? (
                       <>
-                        <label className="checkout-voucher-label">Ma voucher</label>
+                        <label className="checkout-voucher-label">Mã voucher</label>
                         <div className="checkout-voucher-row">
                           <input
                               type="text"
@@ -429,7 +538,7 @@ function Checkout() {
                               disabled={voucherLoading || loading}
                           />
                           <button type="button" onClick={handleApplyVoucher} disabled={voucherLoading || loading || !voucherCode.trim()}>
-                            {voucherLoading ? 'Dang ap dung...' : 'Ap dung'}
+                            {voucherLoading ? 'Đang áp dụng...' : 'Áp dụng'}
                           </button>
                         </div>
                       </>
@@ -445,31 +554,6 @@ function Checkout() {
                   {voucherMessage && <p className="checkout-voucher-message">{voucherMessage}</p>}
                 </div>
 
-                <div className="checkout-promo-section">
-                  {!appliedPromo ? (
-                      <div className="promo-input-group">
-                        <input
-                            type="text"
-                            placeholder="Mã giảm giá"
-                            value={promoCode}
-                            onChange={e => setPromoCode(e.target.value.toUpperCase())}
-                            disabled={checkingPromo || loading || !!voucher}
-                        />
-                        <button type="button" onClick={handleApplyPromo} disabled={!promoCode.trim() || checkingPromo || loading || !!voucher}>
-                          {checkingPromo ? 'Đang ktra...' : 'Áp dụng'}
-                        </button>
-                      </div>
-                  ) : (
-                      <div className="applied-promo">
-                        <div>
-                          <span className="promo-badge">🎟️ {appliedPromo.code}</span>
-                          <span className="promo-desc">{appliedPromo.title}</span>
-                        </div>
-                        <button type="button" onClick={handleRemovePromo} disabled={loading}>✕</button>
-                      </div>
-                  )}
-                  {promoError && <p className="promo-error">{promoError}</p>}
-                </div>
 
                 {discountTotal > 0 && (
                     <div className="summary-row discount-row">
